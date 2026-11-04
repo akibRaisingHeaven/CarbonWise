@@ -13,3 +13,9 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Ignore the real secret Firebase file
+app/google-services.json
+
+# Do NOT ignore the example template
+!app/google-services.json.example
