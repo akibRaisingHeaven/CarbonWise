@@ -51,11 +51,25 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/etEmail" />
 
+    <TextView
+        android:id="@+id/tvForgotPassword"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:minHeight="36dp"
+        android:gravity="center"
+        android:text="Forgot Password?"
+        android:textColor="@color/primary_blue"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/etPassword" />
+
     <Button
         android:id="@+id/btnLogin"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
+        android:layout_marginTop="16dp"
         android:minHeight="48dp"
         android:backgroundTint="@color/primary_blue"
         android:text="Log In"
@@ -64,18 +78,17 @@
         android:textStyle="bold"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/etPassword" />
+        app:layout_constraintTop_toBottomOf="@+id/tvForgotPassword" />
 
-    <Button
-        android:id="@+id/btnOfflineMode"
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnGoogleSignIn"
         style="@style/Widget.MaterialComponents.Button.OutlinedButton"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
         android:minHeight="48dp"
-        android:text="Continue Offline"
+        android:text="Sign in with Google"
         android:textColor="@color/primary_blue"
-        android:textSize="15sp"
         app:strokeColor="@color/primary_blue"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -85,7 +98,7 @@
         android:id="@+id/tvSignUp"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
+        android:layout_marginTop="24dp"
         android:minHeight="48dp"
         android:gravity="center"
         android:text="Don't have an account? Sign Up"
@@ -94,6 +107,6 @@
         android:textStyle="bold"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/btnOfflineMode" />
+        app:layout_constraintTop_toBottomOf="@+id/btnGoogleSignIn" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -44,6 +44,10 @@ dependencies {
     implementation(libs.constraintlayout)
     implementation(libs.credentials)
     implementation(libs.credentials.play.services.auth)
+
+    // Google Sign-In Legacy/Standard API
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
+
     implementation(libs.firebase.auth)
     implementation(libs.googleid)
     implementation(libs.material)
@@ -51,9 +55,8 @@ dependencies {
     androidTestImplementation(libs.espresso.core)
     androidTestImplementation(libs.ext.junit)
 
-    // Room Database (Local Persistence)
-    implementation(libs.room.runtime)
-    annotationProcessor(libs.room.compiler)
+    // Cloud Firestore for cloud persistence and sync
+    implementation("com.google.firebase:firebase-firestore:25.0.0")
 
     // Retrofit & Gson Converter (REST API & JSON Parsing)
     implementation(libs.retrofit)
