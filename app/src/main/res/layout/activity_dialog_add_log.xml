@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Log Carbon Activity"
+        android:textColor="#0F172A"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        tools:ignore="HardcodedText" />
+
+    <EditText
+        android:id="@+id/etActivityTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:minHeight="48dp"
+        android:padding="12dp"
+        android:hint="Title (e.g., Car Commute, AC)"
+        android:textColor="#0F172A"
+        android:textColorHint="#64748B"
+        android:inputType="textCapWords"
+        android:importantForAutofill="no"
+        tools:ignore="HardcodedText" />
+
+    <EditText
+        android:id="@+id/etActivityCategory"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:minHeight="48dp"
+        android:padding="12dp"
+        android:hint="Category (e.g., Transport, Energy)"
+        android:textColor="#0F172A"
+        android:textColorHint="#64748B"
+        android:inputType="textCapWords"
+        android:importantForAutofill="no"
+        tools:ignore="HardcodedText" />
+
+    <EditText
+        android:id="@+id/etCo2Emitted"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:minHeight="48dp"
+        android:padding="12dp"
+        android:hint="CO₂ Emitted in kg (e.g., 2.5)"
+        android:textColor="#0F172A"
+        android:textColorHint="#64748B"
+        android:inputType="numberDecimal"
+        android:importantForAutofill="no"
+        tools:ignore="HardcodedText" />
+
+</LinearLayout>
