@@ -1,164 +1,158 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content">
+    android:layout_height="wrap_content"
+    android:padding="20dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="20dp">
+        android:orientation="vertical">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Log Activity and Calculate CO₂"
+            android:text="Activity Category"
             android:textColor="#0F172A"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            tools:ignore="HardcodedText" />
-
-        <!-- Category Selector -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Category"
-            android:textColor="#64748B"
-            android:textSize="13sp"
-            tools:ignore="HardcodedText" />
+            android:textSize="14sp"
+            android:textStyle="bold" />
 
         <Spinner
             android:id="@+id/spCategory"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:minHeight="48dp" />
+            android:layout_height="48dp"
+            android:layout_marginTop="4dp" />
 
-        <!-- Electricity / Appliance Section -->
+        <!-- Electricity Form -->
         <LinearLayout
             android:id="@+id/layoutElectricity"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:visibility="visible">
+            android:layout_marginTop="12dp"
+            android:orientation="vertical">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
                 android:text="Select Appliance"
-                android:textColor="#64748B"
-                android:textSize="13sp"
-                tools:ignore="HardcodedText" />
+                android:textColor="#0F172A"
+                android:textSize="14sp"
+                android:textStyle="bold" />
 
             <Spinner
                 android:id="@+id/spAppliance"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:minHeight="48dp" />
+                android:layout_height="48dp"
+                android:layout_marginTop="4dp" />
 
-            <CheckBox
-                android:id="@+id/cbAlwaysOn"
+            <TextView
+                android:id="@+id/tvHoursUsedLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:minHeight="48dp"
-                android:text="Always On (24 hours/day)"
+                android:text="Hours Used Today (0.1 - 24.0)"
                 android:textColor="#0F172A"
-                tools:ignore="HardcodedText" />
+                android:textSize="14sp"
+                android:textStyle="bold" />
 
             <EditText
                 android:id="@+id/etHoursUsed"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:minHeight="48dp"
-                android:padding="12dp"
-                android:hint="Duration used in hours (e.g., 4.5)"
-                android:textColor="#0F172A"
-                android:textColorHint="#64748B"
+                android:layout_marginTop="4dp"
+                android:hint="e.g. 3.5"
                 android:inputType="numberDecimal"
-                android:importantForAutofill="no"
-                tools:ignore="HardcodedText" />
+                android:minHeight="48dp"
+                android:textColor="#0F172A"
+                android:textColorHint="#94A3B8" />
         </LinearLayout>
 
-        <!-- Transport Section -->
+        <!-- Transport Form -->
         <LinearLayout
             android:id="@+id/layoutTransport"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
             android:orientation="vertical"
             android:visibility="gone">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
                 android:text="Transport Mode"
-                android:textColor="#64748B"
-                android:textSize="13sp"
-                tools:ignore="HardcodedText" />
+                android:textColor="#0F172A"
+                android:textSize="14sp"
+                android:textStyle="bold" />
 
             <Spinner
                 android:id="@+id/spTransportMode"
                 android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="4dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:minHeight="48dp" />
+                android:layout_marginTop="8dp"
+                android:text="Distance Traveled (km)"
+                android:textColor="#0F172A"
+                android:textSize="14sp"
+                android:textStyle="bold" />
 
             <EditText
                 android:id="@+id/etDistance"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:minHeight="48dp"
-                android:padding="12dp"
-                android:hint="Distance traveled in km (e.g., 12.0)"
-                android:textColor="#0F172A"
-                android:textColorHint="#64748B"
+                android:layout_marginTop="4dp"
+                android:hint="e.g. 12.5"
                 android:inputType="numberDecimal"
-                android:importantForAutofill="no"
-                tools:ignore="HardcodedText" />
+                android:minHeight="48dp"
+                android:textColor="#0F172A"
+                android:textColorHint="#94A3B8" />
         </LinearLayout>
 
-        <!-- Meals Section -->
+        <!-- Meals Form -->
         <LinearLayout
             android:id="@+id/layoutMeals"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
             android:orientation="vertical"
             android:visibility="gone">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="Diet / Meal Type"
-                android:textColor="#64748B"
-                android:textSize="13sp"
-                tools:ignore="HardcodedText" />
+                android:text="Meal Type"
+                android:textColor="#0F172A"
+                android:textSize="14sp"
+                android:textStyle="bold" />
 
             <Spinner
                 android:id="@+id/spMealType"
                 android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="4dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:minHeight="48dp" />
+                android:layout_marginTop="8dp"
+                android:text="Meal Count"
+                android:textColor="#0F172A"
+                android:textSize="14sp"
+                android:textStyle="bold" />
 
             <EditText
                 android:id="@+id/etMealCount"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:minHeight="48dp"
-                android:padding="12dp"
-                android:hint="Number of meals (e.g., 1)"
-                android:text="1"
-                android:textColor="#0F172A"
-                android:textColorHint="#64748B"
+                android:layout_marginTop="4dp"
+                android:hint="e.g. 2"
                 android:inputType="number"
-                android:importantForAutofill="no"
-                tools:ignore="HardcodedText" />
+                android:minHeight="48dp"
+                android:textColor="#0F172A"
+                android:textColorHint="#94A3B8" />
         </LinearLayout>
 
     </LinearLayout>

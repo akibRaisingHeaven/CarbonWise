@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <application
         android:allowBackup="true"
@@ -36,6 +38,16 @@
             android:name=".DashboardActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:label="Household Energy Setup" />
+
+        <activity
+            android:name=".AnalyticsActivity"
+            android:exported="false"
+            android:label="Emission Trend Analytics" />
+
         <!-- Background Service -->
         <service
             android:name=".CarbonGoalService"
@@ -43,7 +55,7 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
-        <!-- Broadcast Receiver -->
+        <!-- Goal & Boot Receiver -->
         <receiver
             android:name=".CarbonGoalReceiver"
             android:enabled="true"
@@ -54,11 +66,27 @@
             </intent-filter>
         </receiver>
 
+        <!-- Daily Log Reminder Receiver -->
+        <receiver
+            android:name=".ReminderReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
+            android:name=".WeeklyReportReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
+            android:name=".MonthlyReportReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
         <!-- Content Provider -->
         <provider
             android:name=".CarbonContentProvider"
             android:authorities="com.example.carbonwise.provider"
-            android:exported="true" />
+            android:exported="false" />
 
     </application>
 

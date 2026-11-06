@@ -1,211 +1,287 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
+<RelativeLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg_light"
-    android:padding="24dp">
+    android:background="@color/bg_light">
 
-    <!-- Header Title -->
-    <TextView
-        android:id="@+id/tvDashboardTitle"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:layout_marginEnd="12dp"
-        android:text="CarbonWise Dashboard"
-        android:textColor="@color/primary_dark_blue"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        app:layout_constraintEnd_toStartOf="@+id/btnLogout"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        tools:ignore="HardcodedText" />
-
-    <!-- Logout Button -->
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnLogout"
-        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:minHeight="48dp"
-        android:paddingHorizontal="12dp"
-        android:text="Log Out"
-        android:textColor="@color/primary_blue"
-        android:textSize="13sp"
-        app:strokeColor="@color/primary_blue"
-        app:layout_constraintBottom_toBottomOf="@+id/tvDashboardTitle"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/tvDashboardTitle"
-        tools:ignore="HardcodedText" />
-
-    <!-- Daily Footprint & Budget Card -->
-    <com.google.android.material.card.MaterialCardView
-        android:id="@+id/cardSummary"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        app:cardBackgroundColor="@color/primary_blue"
-        app:cardCornerRadius="12dp"
-        app:cardElevation="2dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/tvDashboardTitle">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="16dp">
-
-            <TextView
-                android:id="@+id/tvSummaryTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Selected Day Emission Footprint"
-                android:textColor="@color/white"
-                android:textSize="14sp"
-                tools:ignore="HardcodedText" />
-
-            <TextView
-                android:id="@+id/tvTotalCo2"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="0.0 kg CO₂"
-                android:textColor="@color/white"
-                android:textSize="24sp"
-                android:textStyle="bold"
-                tools:ignore="HardcodedText" />
-
-            <!-- Daily Budget Progress Section -->
-            <TextView
-                android:id="@+id/tvBudgetStatus"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="Daily Budget: 0.0 / 15.0 kg CO₂ (0%)"
-                android:textColor="#E2E8F0"
-                android:textSize="12sp"
-                tools:ignore="HardcodedText" />
-
-            <ProgressBar
-                android:id="@+id/pbDailyBudget"
-                style="@style/Widget.AppCompat.ProgressBar.Horizontal"
-                android:layout_width="match_parent"
-                android:layout_height="8dp"
-                android:layout_marginTop="4dp"
-                android:max="100"
-                android:progress="0"
-                android:progressDrawable="@drawable/progress_bar_custom" />
-        </LinearLayout>
-    </com.google.android.material.card.MaterialCardView>
-
-    <!-- Eco Suggestion Card -->
-    <com.google.android.material.card.MaterialCardView
-        android:id="@+id/cardSuggestion"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        app:cardBackgroundColor="#F0FDF4"
-        app:cardCornerRadius="12dp"
-        app:cardElevation="1dp"
-        app:strokeColor="#BBF7D0"
-        app:strokeWidth="1dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/cardSummary">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="14dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="🌱 Eco-Suggestion"
-                android:textColor="#166534"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                tools:ignore="HardcodedText" />
-
-            <TextView
-                android:id="@+id/tvEcoSuggestion"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="Log your daily activities to get customized carbon reduction tips."
-                android:textColor="#15803D"
-                android:textSize="13sp"
-                tools:ignore="HardcodedText" />
-        </LinearLayout>
-    </com.google.android.material.card.MaterialCardView>
-
-    <!-- Date Selection Bar -->
+    <!-- Fixed Top Header Section (Pinned) -->
     <LinearLayout
-        android:id="@+id/layoutDateSelector"
-        android:layout_width="0dp"
+        android:id="@+id/layoutFixedTop"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/cardSuggestion">
+        android:layout_alignParentTop="true"
+        android:background="@color/bg_light"
+        android:elevation="4dp"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="8dp">
 
-        <TextView
-            android:id="@+id/tvRecentLogsHeader"
-            android:layout_width="0dp"
+        <!-- Title and Logout Row -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:id="@+id/tvDashboardTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerVertical="true"
+                android:singleLine="true"
+                android:text="CarbonWise"
+                android:textColor="#0F172A"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                tools:ignore="HardcodedText" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnLogout"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:minHeight="48dp"
+                android:paddingHorizontal="12dp"
+                android:text="Log Out"
+                android:textColor="#1D4ED8"
+                android:textSize="12sp"
+                app:strokeColor="#1D4ED8"
+                tools:ignore="HardcodedText" />
+        </RelativeLayout>
+
+        <!-- Trends and Setup Navigation Row -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Activity Logs"
-            android:textColor="@color/primary_dark_blue"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            tools:ignore="HardcodedText" />
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnAnalytics"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:minHeight="48dp"
+                android:text="📊 Trends"
+                android:textColor="#1D4ED8"
+                android:textSize="13sp"
+                app:strokeColor="#1D4ED8"
+                tools:ignore="HardcodedText" />
+
+            <Button
+                android:id="@+id/btnSettings"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:minHeight="48dp"
+                android:text="⚙️ Setup"
+                android:textColor="#1D4ED8"
+                android:textSize="13sp"
+                app:strokeColor="#1D4ED8"
+                tools:ignore="HardcodedText" />
+        </LinearLayout>
+
+        <!-- Fixed Emission & Daily Budget Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardSummary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#1D4ED8"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:id="@+id/tvSummaryTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Selected Day Emission Footprint"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp"
+                    tools:ignore="HardcodedText" />
+
+                <TextView
+                    android:id="@+id/tvTotalCo2"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="0.0 kg CO₂"
+                    android:textColor="#FFFFFF"
+                    android:textSize="24sp"
+                    android:textStyle="bold"
+                    tools:ignore="HardcodedText" />
+
+                <TextView
+                    android:id="@+id/tvBudgetStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="Daily Budget: 0.0 / 15.0 kg CO₂ (0%)"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    tools:ignore="HardcodedText" />
+
+                <ProgressBar
+                    android:id="@+id/pbDailyBudget"
+                    style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="8dp"
+                    android:layout_marginTop="4dp"
+                    android:max="100"
+                    android:progress="0"
+                    android:progressDrawable="@drawable/progress_bar_custom" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+    </LinearLayout>
+
+    <!-- Scrollable Middle Section (Eco-Suggestion & Activity Logs) -->
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@+id/layoutFixedTop"
+        android:layout_above="@+id/layoutBottomBar"
+        android:fillViewport="true"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="8dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Eco Suggestion Card (Scrollable) -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardSuggestion"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                app:cardBackgroundColor="#F0FDF4"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:strokeColor="#BBF7D0"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="14dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🌱 Eco-Suggestion"
+                        android:textColor="#166534"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        tools:ignore="HardcodedText" />
+
+                    <TextView
+                        android:id="@+id/tvEcoSuggestion"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Log your daily activities to get customized carbon reduction tips."
+                        android:textColor="#15803D"
+                        android:textSize="13sp"
+                        tools:ignore="HardcodedText" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Date Selection & Outage Header Bar -->
+            <LinearLayout
+                android:id="@+id/layoutDateSelector"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tvRecentLogsHeader"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Activity Logs"
+                    android:textColor="#0F172A"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    tools:ignore="HardcodedText" />
+
+                <Button
+                    android:id="@+id/btnReportOutage"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="4dp"
+                    android:minHeight="48dp"
+                    android:paddingHorizontal="10dp"
+                    android:text="⚡ Outage"
+                    android:textColor="#1D4ED8"
+                    android:textSize="12sp"
+                    app:strokeColor="#1D4ED8"
+                    tools:ignore="HardcodedText" />
+
+                <Button
+                    android:id="@+id/btnSelectDate"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
+                    android:paddingHorizontal="10dp"
+                    android:text="📅 Today"
+                    android:textColor="#1D4ED8"
+                    android:textSize="12sp"
+                    app:strokeColor="#1D4ED8"
+                    tools:ignore="HardcodedText" />
+            </LinearLayout>
+
+            <!-- Activity Logs List -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvActivityLogs"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="16dp" />
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+    <!-- Fixed Bottom Button Bar (Pinned) -->
+    <LinearLayout
+        android:id="@+id/layoutBottomBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:background="#FFFFFF"
+        android:elevation="8dp"
+        android:padding="16dp">
 
         <Button
-            android:id="@+id/btnSelectDate"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-            android:layout_width="wrap_content"
+            android:id="@+id/btnLogActivity"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:backgroundTint="#1D4ED8"
             android:minHeight="48dp"
-            android:paddingHorizontal="12dp"
-            android:text="📅 Today"
-            android:textColor="@color/primary_blue"
-            android:textSize="13sp"
-            app:strokeColor="@color/primary_blue"
+            android:text="+ Log New Activity"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold"
             tools:ignore="HardcodedText" />
     </LinearLayout>
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rvActivityLogs"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_marginTop="8dp"
-        android:layout_marginBottom="16dp"
-        app:layout_constraintBottom_toTopOf="@+id/btnLogActivity"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/layoutDateSelector" />
-
-    <Button
-        android:id="@+id/btnLogActivity"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:minHeight="48dp"
-        android:backgroundTint="@color/primary_blue"
-        android:text="+ Log New Activity"
-        android:textColor="@color/white"
-        android:textSize="16sp"
-        android:textStyle="bold"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        tools:ignore="HardcodedText" />
-
-</androidx.constraintlayout.widget.ConstraintLayout>
+</RelativeLayout>

@@ -8,6 +8,7 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.widget.PopupMenu;
 import androidx.recyclerview.widget.RecyclerView;
 import java.util.List;
+import java.util.Locale;
 
 public class ActivityLogAdapter extends RecyclerView.Adapter<ActivityLogAdapter.ViewHolder> {
 
@@ -36,8 +37,8 @@ public class ActivityLogAdapter extends RecyclerView.Adapter<ActivityLogAdapter.
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         ActivityLog log = logList.get(position);
         holder.tvTitle.setText(log.getTitle());
-        holder.tvCategory.setText(log.getCategory() + " • " + log.getDate());
-        holder.tvCo2.setText(String.format("%.1f kg CO₂", log.getCo2Emitted()));
+        holder.tvSubtitle.setText(log.getCategory() + " • " + log.getDate());
+        holder.tvCo2.setText(String.format(Locale.getDefault(), "%.1f kg CO₂", log.getCo2Emitted()));
 
         // Tap item card to trigger Edit / Delete menu
         holder.itemView.setOnClickListener(v -> {
@@ -62,13 +63,13 @@ public class ActivityLogAdapter extends RecyclerView.Adapter<ActivityLogAdapter.
     }
 
     public static class ViewHolder extends RecyclerView.ViewHolder {
-        TextView tvTitle, tvCategory, tvCo2;
+        TextView tvTitle, tvSubtitle, tvCo2;
 
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
-            tvTitle = itemView.findViewById(R.id.tvActivityTitle);
-            tvCategory = itemView.findViewById(R.id.tvActivityCategory);
-            tvCo2 = itemView.findViewById(R.id.tvCo2Amount);
+            tvTitle = itemView.findViewById(R.id.tvLogTitle);
+            tvSubtitle = itemView.findViewById(R.id.tvLogSubtitle);
+            tvCo2 = itemView.findViewById(R.id.tvLogCo2);
         }
     }
 }

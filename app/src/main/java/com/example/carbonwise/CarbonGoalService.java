@@ -37,13 +37,12 @@ public class CarbonGoalService extends Service {
                 .build();
 
         startForeground(1, notification);
-
-        autoLogAlwaysOnBaseline(0.0);
+        autoLogAlwaysOnBaseline();
 
         return START_STICKY;
     }
 
-    private void autoLogAlwaysOnBaseline(double dailyOutageHours) {
+    private void autoLogAlwaysOnBaseline() {
         FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
         if (user == null) return;
 
@@ -53,31 +52,55 @@ public class CarbonGoalService extends Service {
         String todayDate = new SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(new Date());
         String baselineDocId = "baseline_" + new SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(new Date());
 
-        double combinedWatts = 160.0;
-        double effectiveHours = Math.max(0, 24.0 - dailyOutageHours);
-        double baselineCo2 = CarbonCalculator.calculateElectricityCo2(combinedWatts, effectiveHours);
-        long timestamp = System.currentTimeMillis();
-
-        db.collection("users").document(userId)
-                .collection("activity_logs")
-                .document(baselineDocId)
+        db.collection("users").document(userId).collection("config").document("settings")
                 .get()
-                .addOnSuccessListener(doc -> {
-                    if (!doc.exists()) {
-                        ActivityLog baselineLog = new ActivityLog(
-                                baselineDocId,
-                                "Energy",
-                                "Baseload (Refrigerator & Router)",
-                                baselineCo2,
-                                todayDate,
-                                timestamp
-                        );
+                .addOnSuccessListener(configDoc -> {
+                    double greenPercent = 0.0;
+                    int totalAlwaysOnWatts = 0;
 
-                        db.collection("users").document(userId)
-                                .collection("activity_logs")
-                                .document(baselineDocId)
-                                .set(baselineLog);
+                    if (configDoc.exists()) {
+                        UserSettings settings = configDoc.toObject(UserSettings.class);
+                        if (settings != null) {
+                            greenPercent = settings.getGreenEnergyPercent();
+                            if (settings.getAppliances() != null) {
+                                for (ApplianceConfig app : settings.getAppliances().values()) {
+                                    if (app.isOwned() && app.isAlwaysOn()) {
+                                        totalAlwaysOnWatts += app.getWattage();
+                                    }
+                                }
+                            }
+                        }
                     }
+
+                    if (totalAlwaysOnWatts == 0) {
+                        totalAlwaysOnWatts = 160;
+                    }
+
+                    double baselineCo2 = CarbonCalculator.calculateElectricityCo2(totalAlwaysOnWatts, 24.0, greenPercent);
+                    long timestamp = System.currentTimeMillis();
+
+                    final double finalCo2 = baselineCo2;
+                    db.collection("users").document(userId)
+                            .collection("activity_logs")
+                            .document(baselineDocId)
+                            .get()
+                            .addOnSuccessListener(doc -> {
+                                if (!doc.exists()) {
+                                    ActivityLog baselineLog = new ActivityLog(
+                                            baselineDocId,
+                                            "Energy",
+                                            "Baseload (Always-On Devices)",
+                                            finalCo2,
+                                            todayDate,
+                                            timestamp
+                                    );
+
+                                    db.collection("users").document(userId)
+                                            .collection("activity_logs")
+                                            .document(baselineDocId)
+                                            .set(baselineLog);
+                                }
+                            });
                 });
     }
 

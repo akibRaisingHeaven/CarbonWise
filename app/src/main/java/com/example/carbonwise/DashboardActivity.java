@@ -2,15 +2,16 @@ package com.example.carbonwise;
 
 import android.app.DatePickerDialog;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.text.InputType;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
@@ -32,14 +33,17 @@ import com.google.firebase.firestore.Query;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class DashboardActivity extends AppCompatActivity {
 
     private RecyclerView rvActivityLogs;
-    private Button btnLogActivity, btnLogout, btnSelectDate;
+    private Button btnLogActivity, btnLogout, btnSelectDate, btnSettings, btnReportOutage, btnAnalytics;
     private TextView tvTotalCo2, tvEcoSuggestion, tvBudgetStatus, tvSummaryTitle;
     private ProgressBar pbDailyBudget;
     private ActivityLogAdapter adapter;
@@ -54,10 +58,20 @@ public class DashboardActivity extends AppCompatActivity {
     private String selectedDateStr;
     private Calendar calendar;
 
+    private double userGreenPercent = 0.0;
+    private Map<String, ApplianceConfig> userAppliances = new HashMap<>();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_dashboard);
+
+        // Notification permission request for Android 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 101);
+            }
+        }
 
         mAuth = FirebaseAuth.getInstance();
         FirebaseUser currentUser = mAuth.getCurrentUser();
@@ -75,9 +89,15 @@ public class DashboardActivity extends AppCompatActivity {
         selectedDateStr = new SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(calendar.getTime());
 
         rvActivityLogs = findViewById(R.id.rvActivityLogs);
+        rvActivityLogs.setLayoutManager(new LinearLayoutManager(this));
+        rvActivityLogs.setNestedScrollingEnabled(false); // Prevents list clipping inside NestedScrollView
         btnLogActivity = findViewById(R.id.btnLogActivity);
         btnLogout = findViewById(R.id.btnLogout);
         btnSelectDate = findViewById(R.id.btnSelectDate);
+        btnSettings = findViewById(R.id.btnSettings);
+        btnReportOutage = findViewById(R.id.btnReportOutage);
+        btnAnalytics = findViewById(R.id.btnAnalytics);
+
         tvTotalCo2 = findViewById(R.id.tvTotalCo2);
         tvEcoSuggestion = findViewById(R.id.tvEcoSuggestion);
         tvBudgetStatus = findViewById(R.id.tvBudgetStatus);
@@ -91,7 +111,11 @@ public class DashboardActivity extends AppCompatActivity {
         adapter = new ActivityLogAdapter(logList, new ActivityLogAdapter.OnLogActionListener() {
             @Override
             public void onEdit(ActivityLog log) {
-                showEditActivityDialog(log);
+                if (log.getTitle().contains("Baseload")) {
+                    showReportOutageDialog();
+                } else {
+                    showEditActivityDialog(log);
+                }
             }
 
             @Override
@@ -102,6 +126,9 @@ public class DashboardActivity extends AppCompatActivity {
         rvActivityLogs.setAdapter(adapter);
 
         btnLogActivity.setOnClickListener(v -> showAddActivityDialog());
+        btnSettings.setOnClickListener(v -> startActivity(new Intent(DashboardActivity.this, SettingsActivity.class)));
+        btnReportOutage.setOnClickListener(v -> showReportOutageDialog());
+        btnAnalytics.setOnClickListener(v -> startActivity(new Intent(DashboardActivity.this, AnalyticsActivity.class)));
 
         btnLogout.setOnClickListener(v -> {
             mAuth.signOut();
@@ -118,7 +145,27 @@ public class DashboardActivity extends AppCompatActivity {
             startService(serviceIntent);
         }
 
+        checkAndLoadUserSettings();
         loadFirestoreLogs();
+    }
+
+    private void checkAndLoadUserSettings() {
+        db.collection("users").document(userId).collection("config").document("settings")
+                .get()
+                .addOnSuccessListener(doc -> {
+                    if (!doc.exists()) {
+                        startActivity(new Intent(DashboardActivity.this, SettingsActivity.class));
+                    } else {
+                        UserSettings settings = doc.toObject(UserSettings.class);
+                        if (settings != null) {
+                            userGreenPercent = settings.getGreenEnergyPercent();
+                            if (settings.getAppliances() != null) {
+                                userAppliances = settings.getAppliances();
+                            }
+                            ReminderScheduler.scheduleAllReminders(DashboardActivity.this, settings);
+                        }
+                    }
+                });
     }
 
     private void showDatePickerDialog() {
@@ -132,12 +179,7 @@ public class DashboardActivity extends AppCompatActivity {
                     String todayStr = new SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(new Date());
                     selectedDateStr = new SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(calendar.getTime());
 
-                    if (selectedDateStr.equals(todayStr)) {
-                        btnSelectDate.setText("📅 Today");
-                    } else {
-                        btnSelectDate.setText("📅 " + selectedDateStr);
-                    }
-
+                    btnSelectDate.setText(selectedDateStr.equals(todayStr) ? "📅 Today" : "📅 " + selectedDateStr);
                     filterLogsBySelectedDate();
                 },
                 calendar.get(Calendar.YEAR),
@@ -145,7 +187,6 @@ public class DashboardActivity extends AppCompatActivity {
                 calendar.get(Calendar.DAY_OF_MONTH)
         );
 
-        // Block future dates
         datePickerDialog.getDatePicker().setMaxDate(System.currentTimeMillis());
         datePickerDialog.show();
     }
@@ -184,15 +225,22 @@ public class DashboardActivity extends AppCompatActivity {
         updateBudgetProgress();
 
         if (!logList.isEmpty()) {
-            ActivityLog latest = logList.get(0);
-            double co2 = latest.getCo2Emitted();
-            String category = latest.getCategory();
-            String title = latest.getTitle();
+            ActivityLog highestLog = logList.get(0);
+            for (ActivityLog log : logList) {
+                if (log.getCo2Emitted() > highestLog.getCo2Emitted()) {
+                    highestLog = log;
+                }
+            }
+
+            double co2 = highestLog.getCo2Emitted();
+            String category = highestLog.getCategory();
+            String title = highestLog.getTitle();
 
             double estimatedMetric = 1.0;
             if ("Energy".equalsIgnoreCase(category)) {
-                int watts = CarbonCalculator.APPLIANCE_WATTS.getOrDefault(title, 100);
-                estimatedMetric = (co2 / CarbonCalculator.CO2_PER_KWH) * (1000.0 / watts);
+                int watts = userAppliances.containsKey(title) ? userAppliances.get(title).getWattage() : CarbonCalculator.DEFAULT_APPLIANCE_WATTS.getOrDefault(title, 100);
+                double effectiveFactor = CarbonCalculator.DEFAULT_GRID_CO2_PER_KWH * (1.0 - (userGreenPercent / 100.0));
+                estimatedMetric = (effectiveFactor > 0) ? (co2 / effectiveFactor) * (1000.0 / watts) : 1.0;
             } else if ("Transport".equalsIgnoreCase(category)) {
                 double factor = CarbonCalculator.CO2_PER_KM_CAR;
                 if (title.contains("Bus")) factor = CarbonCalculator.CO2_PER_KM_BUS;
@@ -207,7 +255,7 @@ public class DashboardActivity extends AppCompatActivity {
             }
 
             String suggestion = EcoSuggestionEngine.getSuggestion(category, title, estimatedMetric, co2);
-            tvEcoSuggestion.setText(suggestion);
+            tvEcoSuggestion.setText("Largest Footprint (" + title + "):\n" + suggestion);
         } else {
             tvEcoSuggestion.setText("No activities logged for " + selectedDateStr + ". Tap + to add logs!");
         }
@@ -224,6 +272,91 @@ public class DashboardActivity extends AppCompatActivity {
                 "Daily Budget: %.1f / %.1f kg CO₂ (%d%% used)", currentTotalCo2, budget, percentage));
     }
 
+    private List<String> getAvailableManualApplianceNames() {
+        List<String> list = new ArrayList<>();
+        if (userAppliances != null && !userAppliances.isEmpty()) {
+            for (ApplianceConfig config : userAppliances.values()) {
+                if (config.isOwned() && !config.isAlwaysOn()) {
+                    list.add(config.getName());
+                }
+            }
+        }
+        if (list.isEmpty()) {
+            for (String name : CarbonCalculator.getSortedApplianceList()) {
+                ApplianceConfig cfg = userAppliances.get(name);
+                if (cfg == null || !cfg.isAlwaysOn()) {
+                    list.add(name);
+                }
+            }
+        }
+        Collections.sort(list);
+        return list;
+    }
+
+    private void showReportOutageDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Report Power Outage");
+        builder.setMessage("Enter blackout hours experienced on " + selectedDateStr + " to adjust Baseload:");
+
+        final EditText etOutage = new EditText(this);
+        etOutage.setHint("Outage hours (e.g., 2.5)");
+        etOutage.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        etOutage.setPadding(32, 24, 32, 24);
+        builder.setView(etOutage);
+
+        builder.setPositiveButton("Update Baseload", (dialog, which) -> {
+            String input = etOutage.getText().toString().trim();
+            if (TextUtils.isEmpty(input)) return;
+
+            double outageHours = Double.parseDouble(input);
+            if (outageHours < 0.0 || outageHours > 24.0) {
+                Toast.makeText(this, "Outage hours must be between 0.0 and 24.0", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            updateBaseloadForSelectedDate(outageHours);
+        });
+
+        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss());
+        builder.show();
+    }
+
+    private void updateBaseloadForSelectedDate(double outageHours) {
+        int totalAlwaysOnWatts = 0;
+        if (userAppliances != null) {
+            for (ApplianceConfig app : userAppliances.values()) {
+                if (app.isOwned() && app.isAlwaysOn()) {
+                    totalAlwaysOnWatts += app.getWattage();
+                }
+            }
+        }
+        if (totalAlwaysOnWatts == 0) totalAlwaysOnWatts = 160;
+
+        double activeHours = Math.max(0.0, 24.0 - outageHours);
+        double updatedCo2 = CarbonCalculator.calculateElectricityCo2(totalAlwaysOnWatts, activeHours, userGreenPercent);
+
+        String docId = "baseline_" + new SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(calendar.getTime());
+        long timestamp = calendar.getTimeInMillis();
+
+        ActivityLog baseloadLog = new ActivityLog(
+                docId,
+                "Energy",
+                "Baseload (Always-On Devices)",
+                updatedCo2,
+                selectedDateStr,
+                timestamp
+        );
+
+        db.collection("users").document(userId)
+                .collection("activity_logs")
+                .document(docId)
+                .set(baseloadLog)
+                .addOnSuccessListener(aVoid -> Toast.makeText(this,
+                        String.format(Locale.getDefault(), "Baseload updated (%.1fh active run time)", activeHours),
+                        Toast.LENGTH_SHORT).show())
+                .addOnFailureListener(e -> Toast.makeText(this, "Failed to update baseload: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+    }
+
     private void showAddActivityDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         View dialogView = LayoutInflater.from(this).inflate(R.layout.activity_dialog_add_log, null);
@@ -233,7 +366,6 @@ public class DashboardActivity extends AppCompatActivity {
         Spinner spTransportMode = dialogView.findViewById(R.id.spTransportMode);
         Spinner spMealType = dialogView.findViewById(R.id.spMealType);
 
-        CheckBox cbAlwaysOn = dialogView.findViewById(R.id.cbAlwaysOn);
         EditText etHoursUsed = dialogView.findViewById(R.id.etHoursUsed);
         EditText etDistance = dialogView.findViewById(R.id.etDistance);
         EditText etMealCount = dialogView.findViewById(R.id.etMealCount);
@@ -242,22 +374,10 @@ public class DashboardActivity extends AppCompatActivity {
         LinearLayout layoutTransport = dialogView.findViewById(R.id.layoutTransport);
         LinearLayout layoutMeals = dialogView.findViewById(R.id.layoutMeals);
 
-        ArrayAdapter<String> catAdapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_dropdown_item, new String[]{"Energy", "Transport", "Meals"});
-        spCategory.setAdapter(catAdapter);
-
-        List<String> appliances = CarbonCalculator.getSortedApplianceList();
-        ArrayAdapter<String> appAdapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_dropdown_item, appliances);
-        spAppliance.setAdapter(appAdapter);
-
-        ArrayAdapter<String> transAdapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_dropdown_item, new String[]{"Car", "Bus", "Motorbike", "Bicycle / Walking"});
-        spTransportMode.setAdapter(transAdapter);
-
-        ArrayAdapter<String> mealAdapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_dropdown_item, new String[]{"High Meat (Beef / Lamb)", "Low Meat (Poultry / Fish)", "Vegetarian", "Vegan"});
-        spMealType.setAdapter(mealAdapter);
+        spCategory.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"Energy", "Transport", "Meals"}));
+        spAppliance.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, getAvailableManualApplianceNames()));
+        spTransportMode.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"Car", "Bus", "Motorbike", "Bicycle / Walking"}));
+        spMealType.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"High Meat (Beef / Lamb)", "Low Meat (Poultry / Fish)", "Vegetarian", "Vegan"}));
 
         spCategory.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
@@ -269,16 +389,6 @@ public class DashboardActivity extends AppCompatActivity {
             @Override public void onNothingSelected(AdapterView<?> parent) {}
         });
 
-        cbAlwaysOn.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (isChecked) {
-                etHoursUsed.setText("24");
-                etHoursUsed.setEnabled(false);
-            } else {
-                etHoursUsed.setText("");
-                etHoursUsed.setEnabled(true);
-            }
-        });
-
         builder.setView(dialogView)
                 .setPositiveButton("Calculate & Log", (dialog, which) -> {
                     String category = spCategory.getSelectedItem().toString();
@@ -287,21 +397,21 @@ public class DashboardActivity extends AppCompatActivity {
 
                     if ("Energy".equalsIgnoreCase(category)) {
                         String applianceName = spAppliance.getSelectedItem().toString();
-                        int watts = CarbonCalculator.APPLIANCE_WATTS.getOrDefault(applianceName, 100);
-                        String hoursStr = etHoursUsed.getText().toString().trim();
+                        int watts = userAppliances.containsKey(applianceName) ? userAppliances.get(applianceName).getWattage() : CarbonCalculator.DEFAULT_APPLIANCE_WATTS.getOrDefault(applianceName, 100);
 
+                        String hoursStr = etHoursUsed.getText().toString().trim();
                         if (TextUtils.isEmpty(hoursStr)) {
                             Toast.makeText(this, "Please enter hours used", Toast.LENGTH_SHORT).show();
                             return;
                         }
 
-                        double hours = Double.parseDouble(hoursStr);
-                        if (hours <= 0 || hours > 24.0) {
+                        double activeHours = Double.parseDouble(hoursStr);
+                        if (activeHours <= 0 || activeHours > 24.0) {
                             Toast.makeText(this, "Hours used must be between 0.1 and 24.0 hours", Toast.LENGTH_LONG).show();
                             return;
                         }
 
-                        calculatedCo2 = CarbonCalculator.calculateElectricityCo2(watts, hours);
+                        calculatedCo2 = CarbonCalculator.calculateElectricityCo2(watts, activeHours, userGreenPercent);
                         title = applianceName;
 
                     } else if ("Transport".equalsIgnoreCase(category)) {
@@ -357,7 +467,6 @@ public class DashboardActivity extends AppCompatActivity {
         Spinner spTransportMode = dialogView.findViewById(R.id.spTransportMode);
         Spinner spMealType = dialogView.findViewById(R.id.spMealType);
 
-        CheckBox cbAlwaysOn = dialogView.findViewById(R.id.cbAlwaysOn);
         EditText etHoursUsed = dialogView.findViewById(R.id.etHoursUsed);
         EditText etDistance = dialogView.findViewById(R.id.etDistance);
         EditText etMealCount = dialogView.findViewById(R.id.etMealCount);
@@ -366,22 +475,10 @@ public class DashboardActivity extends AppCompatActivity {
         LinearLayout layoutTransport = dialogView.findViewById(R.id.layoutTransport);
         LinearLayout layoutMeals = dialogView.findViewById(R.id.layoutMeals);
 
-        ArrayAdapter<String> catAdapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_dropdown_item, new String[]{"Energy", "Transport", "Meals"});
-        spCategory.setAdapter(catAdapter);
-
-        List<String> appliances = CarbonCalculator.getSortedApplianceList();
-        ArrayAdapter<String> appAdapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_dropdown_item, appliances);
-        spAppliance.setAdapter(appAdapter);
-
-        ArrayAdapter<String> transAdapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_dropdown_item, new String[]{"Car", "Bus", "Motorbike", "Bicycle / Walking"});
-        spTransportMode.setAdapter(transAdapter);
-
-        ArrayAdapter<String> mealAdapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_dropdown_item, new String[]{"High Meat (Beef / Lamb)", "Low Meat (Poultry / Fish)", "Vegetarian", "Vegan"});
-        spMealType.setAdapter(mealAdapter);
+        spCategory.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"Energy", "Transport", "Meals"}));
+        spAppliance.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, getAvailableManualApplianceNames()));
+        spTransportMode.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"Car", "Bus", "Motorbike", "Bicycle / Walking"}));
+        spMealType.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"High Meat (Beef / Lamb)", "Low Meat (Poultry / Fish)", "Vegetarian", "Vegan"}));
 
         int selectedIndex = 0;
         if ("Transport".equalsIgnoreCase(log.getCategory())) selectedIndex = 1;
@@ -402,16 +499,6 @@ public class DashboardActivity extends AppCompatActivity {
             @Override public void onNothingSelected(AdapterView<?> parent) {}
         });
 
-        cbAlwaysOn.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (isChecked) {
-                etHoursUsed.setText("24");
-                etHoursUsed.setEnabled(false);
-            } else {
-                etHoursUsed.setText("");
-                etHoursUsed.setEnabled(true);
-            }
-        });
-
         builder.setView(dialogView)
                 .setTitle("Edit Activity Log")
                 .setPositiveButton("Update Log", (dialog, which) -> {
@@ -421,21 +508,21 @@ public class DashboardActivity extends AppCompatActivity {
 
                     if ("Energy".equalsIgnoreCase(category)) {
                         String applianceName = spAppliance.getSelectedItem().toString();
-                        int watts = CarbonCalculator.APPLIANCE_WATTS.getOrDefault(applianceName, 100);
-                        String hoursStr = etHoursUsed.getText().toString().trim();
+                        int watts = userAppliances.containsKey(applianceName) ? userAppliances.get(applianceName).getWattage() : CarbonCalculator.DEFAULT_APPLIANCE_WATTS.getOrDefault(applianceName, 100);
 
+                        String hoursStr = etHoursUsed.getText().toString().trim();
                         if (TextUtils.isEmpty(hoursStr)) {
                             Toast.makeText(this, "Please enter hours used", Toast.LENGTH_SHORT).show();
                             return;
                         }
 
-                        double hours = Double.parseDouble(hoursStr);
-                        if (hours <= 0 || hours > 24.0) {
+                        double activeHours = Double.parseDouble(hoursStr);
+                        if (activeHours <= 0 || activeHours > 24.0) {
                             Toast.makeText(this, "Hours used must be between 0.1 and 24.0 hours", Toast.LENGTH_LONG).show();
                             return;
                         }
 
-                        calculatedCo2 = CarbonCalculator.calculateElectricityCo2(watts, hours);
+                        calculatedCo2 = CarbonCalculator.calculateElectricityCo2(watts, activeHours, userGreenPercent);
                         title = applianceName;
 
                     } else if ("Transport".equalsIgnoreCase(category)) {

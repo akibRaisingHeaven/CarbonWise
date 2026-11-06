@@ -1,0 +1,92 @@
+package com.example.carbonwise;
+
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.os.Build;
+
+import androidx.core.app.NotificationCompat;
+
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FirebaseFirestore;
+
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Set;
+
+public class MonthlyReportReceiver extends BroadcastReceiver {
+
+    private static final String CHANNEL_ID = "monthly_report_channel";
+
+    @Override
+    public void onReceive(Context context, Intent intent) {
+        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+        if (user == null) return;
+
+        FirebaseFirestore db = FirebaseFirestore.getInstance();
+        Calendar cal = Calendar.getInstance();
+        SimpleDateFormat sdf = new SimpleDateFormat("MMM d, yyyy", Locale.getDefault());
+        Set<String> past30Days = new HashSet<>();
+
+        for (int i = 0; i < 30; i++) {
+            past30Days.add(sdf.format(cal.getTime()));
+            cal.add(Calendar.DAY_OF_YEAR, -1);
+        }
+
+        db.collection("users").document(user.getUid()).collection("activity_logs")
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    double monthlyCo2 = 0.0;
+                    for (DocumentSnapshot doc : queryDocumentSnapshots.getDocuments()) {
+                        ActivityLog log = doc.toObject(ActivityLog.class);
+                        if (log != null && past30Days.contains(log.getDate())) {
+                            monthlyCo2 += log.getCo2Emitted();
+                        }
+                    }
+                    sendNotification(context, monthlyCo2);
+                });
+    }
+
+    private void sendNotification(Context context, double monthlyCo2) {
+        NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                    CHANNEL_ID,
+                    "Monthly Carbon Reports",
+                    NotificationManager.IMPORTANCE_DEFAULT
+            );
+            if (manager != null) {
+                manager.createNotificationChannel(channel);
+            }
+        }
+
+        Intent openAnalyticsIntent = new Intent(context, AnalyticsActivity.class);
+        openAnalyticsIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        PendingIntent pendingIntent = PendingIntent.getActivity(
+                context,
+                0,
+                openAnalyticsIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.ic_menu_month)
+                .setContentTitle("📈 Monthly Carbon Report")
+                .setContentText(String.format(Locale.getDefault(), "30-day total: %.1f kg CO₂. Tap to inspect monthly trends!", monthlyCo2))
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setContentIntent(pendingIntent)
+                .setAutoCancel(true);
+
+        if (manager != null) {
+            manager.notify(302, builder.build());
+        }
+    }
+}
