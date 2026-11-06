@@ -1,61 +1,165 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
+<ScrollView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:padding="20dp">
+    android:layout_height="wrap_content">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Log Carbon Activity"
-        android:textColor="#0F172A"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        tools:ignore="HardcodedText" />
-
-    <EditText
-        android:id="@+id/etActivityTitle"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:minHeight="48dp"
-        android:padding="12dp"
-        android:hint="Title (e.g., Car Commute, AC)"
-        android:textColor="#0F172A"
-        android:textColorHint="#64748B"
-        android:inputType="textCapWords"
-        android:importantForAutofill="no"
-        tools:ignore="HardcodedText" />
+        android:orientation="vertical"
+        android:padding="20dp">
 
-    <EditText
-        android:id="@+id/etActivityCategory"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:minHeight="48dp"
-        android:padding="12dp"
-        android:hint="Category (e.g., Transport, Energy)"
-        android:textColor="#0F172A"
-        android:textColorHint="#64748B"
-        android:inputType="textCapWords"
-        android:importantForAutofill="no"
-        tools:ignore="HardcodedText" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Log Activity and Calculate CO₂"
+            android:textColor="#0F172A"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            tools:ignore="HardcodedText" />
 
-    <EditText
-        android:id="@+id/etCo2Emitted"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:minHeight="48dp"
-        android:padding="12dp"
-        android:hint="CO₂ Emitted in kg (e.g., 2.5)"
-        android:textColor="#0F172A"
-        android:textColorHint="#64748B"
-        android:inputType="numberDecimal"
-        android:importantForAutofill="no"
-        tools:ignore="HardcodedText" />
+        <!-- Category Selector -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Category"
+            android:textColor="#64748B"
+            android:textSize="13sp"
+            tools:ignore="HardcodedText" />
 
-</LinearLayout>
+        <Spinner
+            android:id="@+id/spCategory"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp" />
+
+        <!-- Electricity / Appliance Section -->
+        <LinearLayout
+            android:id="@+id/layoutElectricity"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="visible">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Select Appliance"
+                android:textColor="#64748B"
+                android:textSize="13sp"
+                tools:ignore="HardcodedText" />
+
+            <Spinner
+                android:id="@+id/spAppliance"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp" />
+
+            <CheckBox
+                android:id="@+id/cbAlwaysOn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:minHeight="48dp"
+                android:text="Always On (24 hours/day)"
+                android:textColor="#0F172A"
+                tools:ignore="HardcodedText" />
+
+            <EditText
+                android:id="@+id/etHoursUsed"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:minHeight="48dp"
+                android:padding="12dp"
+                android:hint="Duration used in hours (e.g., 4.5)"
+                android:textColor="#0F172A"
+                android:textColorHint="#64748B"
+                android:inputType="numberDecimal"
+                android:importantForAutofill="no"
+                tools:ignore="HardcodedText" />
+        </LinearLayout>
+
+        <!-- Transport Section -->
+        <LinearLayout
+            android:id="@+id/layoutTransport"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Transport Mode"
+                android:textColor="#64748B"
+                android:textSize="13sp"
+                tools:ignore="HardcodedText" />
+
+            <Spinner
+                android:id="@+id/spTransportMode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp" />
+
+            <EditText
+                android:id="@+id/etDistance"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:minHeight="48dp"
+                android:padding="12dp"
+                android:hint="Distance traveled in km (e.g., 12.0)"
+                android:textColor="#0F172A"
+                android:textColorHint="#64748B"
+                android:inputType="numberDecimal"
+                android:importantForAutofill="no"
+                tools:ignore="HardcodedText" />
+        </LinearLayout>
+
+        <!-- Meals Section -->
+        <LinearLayout
+            android:id="@+id/layoutMeals"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Diet / Meal Type"
+                android:textColor="#64748B"
+                android:textSize="13sp"
+                tools:ignore="HardcodedText" />
+
+            <Spinner
+                android:id="@+id/spMealType"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp" />
+
+            <EditText
+                android:id="@+id/etMealCount"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:minHeight="48dp"
+                android:padding="12dp"
+                android:hint="Number of meals (e.g., 1)"
+                android:text="1"
+                android:textColor="#0F172A"
+                android:textColorHint="#64748B"
+                android:inputType="number"
+                android:importantForAutofill="no"
+                tools:ignore="HardcodedText" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

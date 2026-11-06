@@ -5,15 +5,23 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
+import androidx.appcompat.widget.PopupMenu;
 import androidx.recyclerview.widget.RecyclerView;
 import java.util.List;
 
 public class ActivityLogAdapter extends RecyclerView.Adapter<ActivityLogAdapter.ViewHolder> {
 
-    private final List<ActivityLog> logList;
+    public interface OnLogActionListener {
+        void onEdit(ActivityLog log);
+        void onDelete(ActivityLog log);
+    }
 
-    public ActivityLogAdapter(List<ActivityLog> logList) {
+    private final List<ActivityLog> logList;
+    private final OnLogActionListener listener;
+
+    public ActivityLogAdapter(List<ActivityLog> logList, OnLogActionListener listener) {
         this.logList = logList;
+        this.listener = listener;
     }
 
     @NonNull
@@ -30,6 +38,22 @@ public class ActivityLogAdapter extends RecyclerView.Adapter<ActivityLogAdapter.
         holder.tvTitle.setText(log.getTitle());
         holder.tvCategory.setText(log.getCategory() + " • " + log.getDate());
         holder.tvCo2.setText(String.format("%.1f kg CO₂", log.getCo2Emitted()));
+
+        // Tap item card to trigger Edit / Delete menu
+        holder.itemView.setOnClickListener(v -> {
+            PopupMenu popup = new PopupMenu(v.getContext(), v);
+            popup.getMenu().add("Edit");
+            popup.getMenu().add("Delete");
+            popup.setOnMenuItemClickListener(item -> {
+                if ("Edit".equals(item.getTitle())) {
+                    listener.onEdit(log);
+                } else if ("Delete".equals(item.getTitle())) {
+                    listener.onDelete(log);
+                }
+                return true;
+            });
+            popup.show();
+        });
     }
 
     @Override

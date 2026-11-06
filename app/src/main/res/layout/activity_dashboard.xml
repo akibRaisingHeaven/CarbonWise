@@ -8,6 +8,7 @@
     android:background="@color/bg_light"
     android:padding="24dp">
 
+    <!-- Header Title -->
     <TextView
         android:id="@+id/tvDashboardTitle"
         android:layout_width="0dp"
@@ -23,6 +24,7 @@
         app:layout_constraintTop_toTopOf="parent"
         tools:ignore="HardcodedText" />
 
+    <!-- Logout Button -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnLogout"
         style="@style/Widget.MaterialComponents.Button.OutlinedButton"
@@ -39,12 +41,12 @@
         app:layout_constraintTop_toTopOf="@+id/tvDashboardTitle"
         tools:ignore="HardcodedText" />
 
-    <!-- Total CO2 Live Summary Card (Realtime Database) -->
+    <!-- Daily Footprint & Budget Card -->
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/cardSummary"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
+        android:layout_marginTop="16dp"
         app:cardBackgroundColor="@color/primary_blue"
         app:cardCornerRadius="12dp"
         app:cardElevation="2dp"
@@ -59,9 +61,10 @@
             android:padding="16dp">
 
             <TextView
+                android:id="@+id/tvSummaryTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Total Emission Footprint"
+                android:text="Selected Day Emission Footprint"
                 android:textColor="@color/white"
                 android:textSize="14sp"
                 tools:ignore="HardcodedText" />
@@ -76,32 +79,119 @@
                 android:textSize="24sp"
                 android:textStyle="bold"
                 tools:ignore="HardcodedText" />
+
+            <!-- Daily Budget Progress Section -->
+            <TextView
+                android:id="@+id/tvBudgetStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Daily Budget: 0.0 / 15.0 kg CO₂ (0%)"
+                android:textColor="#E2E8F0"
+                android:textSize="12sp"
+                tools:ignore="HardcodedText" />
+
+            <ProgressBar
+                android:id="@+id/pbDailyBudget"
+                style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+                android:layout_width="match_parent"
+                android:layout_height="8dp"
+                android:layout_marginTop="4dp"
+                android:max="100"
+                android:progress="0"
+                android:progressDrawable="@drawable/progress_bar_custom" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
-    <TextView
-        android:id="@+id/tvRecentLogsHeader"
-        android:layout_width="wrap_content"
+    <!-- Eco Suggestion Card -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cardSuggestion"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:text="Recent Activity Logs"
-        android:textColor="@color/primary_dark_blue"
-        android:textSize="18sp"
-        android:textStyle="bold"
+        android:layout_marginTop="12dp"
+        app:cardBackgroundColor="#F0FDF4"
+        app:cardCornerRadius="12dp"
+        app:cardElevation="1dp"
+        app:strokeColor="#BBF7D0"
+        app:strokeWidth="1dp"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/cardSummary"
-        tools:ignore="HardcodedText" />
+        app:layout_constraintTop_toBottomOf="@+id/cardSummary">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="14dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🌱 Eco-Suggestion"
+                android:textColor="#166534"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                tools:ignore="HardcodedText" />
+
+            <TextView
+                android:id="@+id/tvEcoSuggestion"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Log your daily activities to get customized carbon reduction tips."
+                android:textColor="#15803D"
+                android:textSize="13sp"
+                tools:ignore="HardcodedText" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Date Selection Bar -->
+    <LinearLayout
+        android:id="@+id/layoutDateSelector"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/cardSuggestion">
+
+        <TextView
+            android:id="@+id/tvRecentLogsHeader"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Activity Logs"
+            android:textColor="@color/primary_dark_blue"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            tools:ignore="HardcodedText" />
+
+        <Button
+            android:id="@+id/btnSelectDate"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:paddingHorizontal="12dp"
+            android:text="📅 Today"
+            android:textColor="@color/primary_blue"
+            android:textSize="13sp"
+            app:strokeColor="@color/primary_blue"
+            tools:ignore="HardcodedText" />
+    </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rvActivityLogs"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="8dp"
         android:layout_marginBottom="16dp"
         app:layout_constraintBottom_toTopOf="@+id/btnLogActivity"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/tvRecentLogsHeader" />
+        app:layout_constraintTop_toBottomOf="@+id/layoutDateSelector" />
 
     <Button
         android:id="@+id/btnLogActivity"

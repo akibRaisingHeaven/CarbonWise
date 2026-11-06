@@ -58,9 +58,6 @@ dependencies {
     // Cloud Firestore for cloud persistence and sync
     implementation("com.google.firebase:firebase-firestore:25.0.0")
 
-    // Firebase Realtime Database
-    implementation("com.google.firebase:firebase-database:21.0.0")
-
     // Retrofit & Gson Converter (REST API & JSON Parsing)
     implementation(libs.retrofit)
     implementation(libs.converter.gson)
