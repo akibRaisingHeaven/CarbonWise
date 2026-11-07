@@ -5,7 +5,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class UserSettings {
-    private double greenEnergyPercent;
+    private double greenElectricityPercent;
+
+    // Daily Carbon Budget Settings
+    private String budgetTier; // "ECO", "STANDARD", "LENIENT", "CUSTOM"
+    private double customBudgetKg;
+    private double dailyBudgetKg;
 
     // Persistent Live Service Notification
     private boolean liveTrackerEnabled;
@@ -30,8 +35,12 @@ public class UserSettings {
     private Map<String, ApplianceConfig> appliances;
 
     public UserSettings() {
-        this.greenEnergyPercent = 0.0;
-        this.liveTrackerEnabled = true; // Default ON
+        this.greenElectricityPercent = 0.0;
+        this.budgetTier = "STANDARD";
+        this.customBudgetKg = 15.0;
+        this.dailyBudgetKg = 15.0;
+
+        this.liveTrackerEnabled = true;
 
         this.reminderEnabled = true;
         this.reminderHour = 20;
@@ -50,12 +59,16 @@ public class UserSettings {
         this.appliances = new HashMap<>();
     }
 
-    public UserSettings(double greenEnergyPercent, boolean liveTrackerEnabled,
+    public UserSettings(double greenElectricityPercent, String budgetTier, double customBudgetKg, double dailyBudgetKg,
+                        boolean liveTrackerEnabled,
                         boolean reminderEnabled, int reminderHour, int reminderMinute,
                         boolean weeklyReminderEnabled, int weeklyReminderDay, int weeklyReminderHour, int weeklyReminderMinute,
                         boolean monthlyReminderEnabled, int monthlyReminderDay, int monthlyReminderHour, int monthlyReminderMinute,
                         Map<String, ApplianceConfig> appliances) {
-        this.greenEnergyPercent = greenEnergyPercent;
+        this.greenElectricityPercent = greenElectricityPercent;
+        this.budgetTier = budgetTier;
+        this.customBudgetKg = customBudgetKg;
+        this.dailyBudgetKg = dailyBudgetKg;
         this.liveTrackerEnabled = liveTrackerEnabled;
         this.reminderEnabled = reminderEnabled;
         this.reminderHour = reminderHour;
@@ -71,8 +84,17 @@ public class UserSettings {
         this.appliances = appliances;
     }
 
-    public double getGreenEnergyPercent() { return greenEnergyPercent; }
-    public void setGreenEnergyPercent(double greenEnergyPercent) { this.greenEnergyPercent = greenEnergyPercent; }
+    public double getGreenElectricityPercent() { return greenElectricityPercent; }
+    public void setGreenElectricityPercent(double greenElectricityPercent) { this.greenElectricityPercent = greenElectricityPercent; }
+
+    public String getBudgetTier() { return budgetTier; }
+    public void setBudgetTier(String budgetTier) { this.budgetTier = budgetTier; }
+
+    public double getCustomBudgetKg() { return customBudgetKg; }
+    public void setCustomBudgetKg(double customBudgetKg) { this.customBudgetKg = customBudgetKg; }
+
+    public double getDailyBudgetKg() { return dailyBudgetKg; }
+    public void setDailyBudgetKg(double dailyBudgetKg) { this.dailyBudgetKg = dailyBudgetKg; }
 
     public boolean isLiveTrackerEnabled() { return liveTrackerEnabled; }
     public void setLiveTrackerEnabled(boolean liveTrackerEnabled) { this.liveTrackerEnabled = liveTrackerEnabled; }

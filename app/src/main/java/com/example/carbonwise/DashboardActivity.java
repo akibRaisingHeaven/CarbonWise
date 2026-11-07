@@ -5,19 +5,9 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.text.Editable;
-import android.text.InputType;
-import android.text.TextUtils;
-import android.text.TextWatcher;
-import android.view.LayoutInflater;
-import android.view.View;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.LinearLayout;
 import android.widget.ProgressBar;
-import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -28,14 +18,10 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.firestore.DocumentSnapshot;
-import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.Query;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -48,12 +34,12 @@ public class DashboardActivity extends AppCompatActivity {
     private Button btnLogActivity, btnLogout, btnSelectDate, btnSettings, btnReportOutage, btnAnalytics;
     private TextView tvTotalCo2, tvEcoSuggestion, tvBudgetStatus, tvSummaryTitle;
     private ProgressBar pbDailyBudget;
+
     private ActivityLogAdapter adapter;
     private List<ActivityLog> logList;
     private List<ActivityLog> allFetchedLogs;
 
-    private FirebaseAuth mAuth;
-    private FirebaseFirestore db;
+    private FirestoreRepository repository;
     private String userId;
 
     private double currentTotalCo2 = 0.0;
@@ -71,6 +57,14 @@ public class DashboardActivity extends AppCompatActivity {
                     String locationName = result.getData().getStringExtra("location_name");
                     if (locationName != null && !locationName.isEmpty()) {
                         pendingMapEditText.setText(locationName);
+                        // Remember the exact pin position so the route uses it instead of re-searching the name
+                        if (result.getData().hasExtra("lat") && result.getData().hasExtra("lon")) {
+                            double pickedLat = result.getData().getDoubleExtra("lat", 0.0);
+                            double pickedLon = result.getData().getDoubleExtra("lon", 0.0);
+                            pendingMapEditText.setTag(new String[]{
+                                    locationName,
+                                    String.format(java.util.Locale.US, "%.6f, %.6f", pickedLat, pickedLon)});
+                        }
                     }
                 }
             });
@@ -80,16 +74,13 @@ public class DashboardActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_dashboard);
 
-        // Notification permission request for Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 101);
             }
         }
 
-        mAuth = FirebaseAuth.getInstance();
-        FirebaseUser currentUser = mAuth.getCurrentUser();
-
+        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
         if (currentUser == null) {
             startActivity(new Intent(DashboardActivity.this, LoginActivity.class));
             finish();
@@ -97,15 +88,32 @@ public class DashboardActivity extends AppCompatActivity {
         }
 
         userId = currentUser.getUid();
-        db = FirebaseFirestore.getInstance();
+        repository = new FirestoreRepository();
 
         calendar = Calendar.getInstance();
         selectedDateStr = new SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(calendar.getTime());
 
-        rvActivityLogs = findViewById(R.id.rvActivityLogs);
-        rvActivityLogs.setLayoutManager(new LinearLayoutManager(this));
-        rvActivityLogs.setNestedScrollingEnabled(false);
+        initViews();
+        setupRecyclerView();
 
+        btnLogActivity.setOnClickListener(v -> showAddActivityDialog());
+        btnSettings.setOnClickListener(v -> startActivity(new Intent(DashboardActivity.this, SettingsActivity.class)));
+        btnReportOutage.setOnClickListener(v -> showReportOutageDialog());
+        btnAnalytics.setOnClickListener(v -> startActivity(new Intent(DashboardActivity.this, AnalyticsActivity.class)));
+
+        btnLogout.setOnClickListener(v -> {
+            FirebaseAuth.getInstance().signOut();
+            startActivity(new Intent(DashboardActivity.this, LoginActivity.class));
+            finish();
+        });
+
+        btnSelectDate.setOnClickListener(v -> showDatePickerDialog());
+
+        loadSettingsAndLogs();
+    }
+
+    private void initViews() {
+        rvActivityLogs = findViewById(R.id.rvActivityLogs);
         btnLogActivity = findViewById(R.id.btnLogActivity);
         btnLogout = findViewById(R.id.btnLogout);
         btnSelectDate = findViewById(R.id.btnSelectDate);
@@ -118,14 +126,19 @@ public class DashboardActivity extends AppCompatActivity {
         tvBudgetStatus = findViewById(R.id.tvBudgetStatus);
         tvSummaryTitle = findViewById(R.id.tvSummaryTitle);
         pbDailyBudget = findViewById(R.id.pbDailyBudget);
+    }
 
+    private void setupRecyclerView() {
         logList = new ArrayList<>();
         allFetchedLogs = new ArrayList<>();
+
+        rvActivityLogs.setLayoutManager(new LinearLayoutManager(this));
+        rvActivityLogs.setNestedScrollingEnabled(false);
 
         adapter = new ActivityLogAdapter(logList, new ActivityLogAdapter.OnLogActionListener() {
             @Override
             public void onEdit(ActivityLog log) {
-                if (log.getTitle().contains("Baseload")) {
+                if (log.getTitle().contains("Baseload") || (log.getId() != null && log.getId().startsWith("baseline_"))) {
                     showReportOutageDialog();
                 } else {
                     showEditActivityDialog(log);
@@ -134,57 +147,60 @@ public class DashboardActivity extends AppCompatActivity {
 
             @Override
             public void onDelete(ActivityLog log) {
-                confirmDeleteLog(log);
+                if (log.getTitle().contains("Baseload") || (log.getId() != null && log.getId().startsWith("baseline_"))) {
+                    Toast.makeText(DashboardActivity.this, "Baseload log is automated and cannot be deleted.", Toast.LENGTH_SHORT).show();
+                } else {
+                    confirmDeleteLog(log);
+                }
             }
         });
         rvActivityLogs.setAdapter(adapter);
-
-        btnLogActivity.setOnClickListener(v -> showAddActivityDialog());
-        btnSettings.setOnClickListener(v -> startActivity(new Intent(DashboardActivity.this, SettingsActivity.class)));
-        btnReportOutage.setOnClickListener(v -> showReportOutageDialog());
-        btnAnalytics.setOnClickListener(v -> startActivity(new Intent(DashboardActivity.this, AnalyticsActivity.class)));
-
-        btnLogout.setOnClickListener(v -> {
-            mAuth.signOut();
-            startActivity(new Intent(DashboardActivity.this, LoginActivity.class));
-            finish();
-        });
-
-        btnSelectDate.setOnClickListener(v -> showDatePickerDialog());
-
-        checkAndLoadUserSettings();
-        loadFirestoreLogs();
     }
 
-    private void checkAndLoadUserSettings() {
-        db.collection("users").document(userId).collection("config").document("settings")
-                .get()
-                .addOnSuccessListener(doc -> {
-                    if (!doc.exists()) {
-                        startActivity(new Intent(DashboardActivity.this, SettingsActivity.class));
+    private void loadSettingsAndLogs() {
+        repository.loadUserSettings(new FirestoreRepository.SettingsCallback() {
+            @Override
+            public void onSettingsLoaded(UserSettings settings) {
+                userGreenPercent = settings.getGreenElectricityPercent();
+                if (settings.getAppliances() != null) {
+                    userAppliances = settings.getAppliances();
+                }
+                ReminderScheduler.scheduleAllReminders(DashboardActivity.this, settings);
+
+                // Auto-check and write baseload entry if missing
+                repository.ensureDailyBaseloadLogged(calendar, selectedDateStr, userAppliances, userGreenPercent);
+
+                Intent serviceIntent = new Intent(DashboardActivity.this, CarbonGoalService.class);
+                if (settings.isLiveTrackerEnabled()) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        startForegroundService(serviceIntent);
                     } else {
-                        UserSettings settings = doc.toObject(UserSettings.class);
-                        if (settings != null) {
-                            userGreenPercent = settings.getGreenEnergyPercent();
-                            if (settings.getAppliances() != null) {
-                                userAppliances = settings.getAppliances();
-                            }
-
-                            ReminderScheduler.scheduleAllReminders(DashboardActivity.this, settings);
-
-                            Intent serviceIntent = new Intent(DashboardActivity.this, CarbonGoalService.class);
-                            if (settings.isLiveTrackerEnabled()) {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                    startForegroundService(serviceIntent);
-                                } else {
-                                    startService(serviceIntent);
-                                }
-                            } else {
-                                stopService(serviceIntent);
-                            }
-                        }
+                        startService(serviceIntent);
                     }
-                });
+                } else {
+                    stopService(serviceIntent);
+                }
+            }
+
+            @Override
+            public void onNoSettingsFound() {
+                startActivity(new Intent(DashboardActivity.this, SettingsActivity.class));
+            }
+        });
+
+        repository.listenToLogs(new FirestoreRepository.LogsCallback() {
+            @Override
+            public void onLogsLoaded(List<ActivityLog> logs) {
+                allFetchedLogs.clear();
+                allFetchedLogs.addAll(logs);
+                filterLogsBySelectedDate();
+            }
+
+            @Override
+            public void onError(String error) {
+                Toast.makeText(DashboardActivity.this, "Error loading logs: " + error, Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private void showDatePickerDialog() {
@@ -199,6 +215,9 @@ public class DashboardActivity extends AppCompatActivity {
                     selectedDateStr = new SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(calendar.getTime());
 
                     btnSelectDate.setText(selectedDateStr.equals(todayStr) ? "📅 Today" : "📅 " + selectedDateStr);
+
+                    // Auto-check and write baseload entry when switching dates
+                    repository.ensureDailyBaseloadLogged(calendar, selectedDateStr, userAppliances, userGreenPercent);
                     filterLogsBySelectedDate();
                 },
                 calendar.get(Calendar.YEAR),
@@ -208,23 +227,6 @@ public class DashboardActivity extends AppCompatActivity {
 
         datePickerDialog.getDatePicker().setMaxDate(System.currentTimeMillis());
         datePickerDialog.show();
-    }
-
-    private void loadFirestoreLogs() {
-        db.collection("users").document(userId).collection("activity_logs")
-                .orderBy("timestamp", Query.Direction.DESCENDING)
-                .addSnapshotListener((snapshots, e) -> {
-                    if (e != null || snapshots == null) return;
-
-                    allFetchedLogs.clear();
-                    for (DocumentSnapshot doc : snapshots.getDocuments()) {
-                        ActivityLog log = doc.toObject(ActivityLog.class);
-                        if (log != null) {
-                            allFetchedLogs.add(log);
-                        }
-                    }
-                    filterLogsBySelectedDate();
-                });
     }
 
     private void filterLogsBySelectedDate() {
@@ -242,13 +244,25 @@ public class DashboardActivity extends AppCompatActivity {
         currentTotalCo2 = sumCo2ForDay;
         tvSummaryTitle.setText("Emissions for " + selectedDateStr);
         updateBudgetProgress();
+        updateEcoSuggestion();
+    }
 
+    private void updateBudgetProgress() {
+        tvTotalCo2.setText(String.format(Locale.getDefault(), "%.1f kg CO₂", currentTotalCo2));
+
+        double budget = CarbonCalculator.DAILY_CARBON_BUDGET_KG;
+        int percentage = (int) Math.min(100, (currentTotalCo2 / budget) * 100);
+
+        pbDailyBudget.setProgress(percentage);
+        tvBudgetStatus.setText(String.format(Locale.getDefault(),
+                "Daily Budget: %.1f / %.1f kg CO₂ (%d%% used)", currentTotalCo2, budget, percentage));
+    }
+
+    private void updateEcoSuggestion() {
         if (!logList.isEmpty()) {
             ActivityLog highestLog = logList.get(0);
             for (ActivityLog log : logList) {
-                if (log.getCo2Emitted() > highestLog.getCo2Emitted()) {
-                    highestLog = log;
-                }
+                if (log.getCo2Emitted() > highestLog.getCo2Emitted()) highestLog = log;
             }
 
             double co2 = highestLog.getCo2Emitted();
@@ -261,11 +275,7 @@ public class DashboardActivity extends AppCompatActivity {
                 double effectiveFactor = CarbonCalculator.DEFAULT_GRID_CO2_PER_KWH * (1.0 - (userGreenPercent / 100.0));
                 estimatedMetric = (effectiveFactor > 0) ? (co2 / effectiveFactor) * (1000.0 / watts) : 1.0;
             } else if ("Transport".equalsIgnoreCase(category)) {
-                double factor = CarbonCalculator.CO2_PER_KM_CAR;
-                if (title.contains("Bus")) factor = CarbonCalculator.CO2_PER_KM_BUS;
-                else if (title.contains("Motorbike")) factor = CarbonCalculator.CO2_PER_KM_BIKE;
-                else if (title.contains("EV") || title.contains("Electric Vehicle")) factor = CarbonCalculator.CO2_PER_KM_EV;
-                else if (title.contains("Train")) factor = CarbonCalculator.CO2_PER_KM_TRAIN;
+                double factor = CarbonCalculator.calculateTransportCo2(title, 1.0);
                 estimatedMetric = (factor > 0) ? (co2 / factor) : 0.0;
             } else if ("Meals".equalsIgnoreCase(category)) {
                 double factor = CarbonCalculator.CO2_PER_MEAL_BEEF;
@@ -282,528 +292,56 @@ public class DashboardActivity extends AppCompatActivity {
         }
     }
 
-    private void updateBudgetProgress() {
-        tvTotalCo2.setText(String.format(Locale.getDefault(), "%.1f kg CO₂", currentTotalCo2));
-
-        double budget = CarbonCalculator.DAILY_CARBON_BUDGET_KG;
-        int percentage = (int) Math.min(100, (currentTotalCo2 / budget) * 100);
-
-        pbDailyBudget.setProgress(percentage);
-        tvBudgetStatus.setText(String.format(Locale.getDefault(),
-                "Daily Budget: %.1f / %.1f kg CO₂ (%d%% used)", currentTotalCo2, budget, percentage));
-    }
-
-    private List<String> getAvailableManualApplianceNames() {
-        List<String> list = new ArrayList<>();
-        if (userAppliances != null && !userAppliances.isEmpty()) {
-            for (ApplianceConfig config : userAppliances.values()) {
-                if (config.isOwned() && !config.isAlwaysOn()) {
-                    list.add(config.getName());
-                }
-            }
-        }
-        if (list.isEmpty()) {
-            for (String name : CarbonCalculator.getSortedApplianceList()) {
-                ApplianceConfig cfg = userAppliances.get(name);
-                if (cfg == null || !cfg.isAlwaysOn()) {
-                    list.add(name);
-                }
-            }
-        }
-        Collections.sort(list);
-        return list;
-    }
-
-    private void showReportOutageDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Report Power Outage");
-        builder.setMessage("Enter blackout hours experienced on " + selectedDateStr + " to adjust Baseload:");
-
-        final EditText etOutage = new EditText(this);
-        etOutage.setHint("Outage hours (e.g., 2.5)");
-        etOutage.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        etOutage.setPadding(32, 24, 32, 24);
-        builder.setView(etOutage);
-
-        builder.setPositiveButton("Update Baseload", (dialog, which) -> {
-            String input = etOutage.getText().toString().trim();
-            if (TextUtils.isEmpty(input)) return;
-
-            double outageHours = Double.parseDouble(input);
-            if (outageHours < 0.0 || outageHours > 24.0) {
-                Toast.makeText(this, "Outage hours must be between 0.0 and 24.0", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            updateBaseloadForSelectedDate(outageHours);
-        });
-
-        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss());
-        builder.show();
-    }
-
-    private void updateBaseloadForSelectedDate(double outageHours) {
-        int totalAlwaysOnWatts = 0;
-        if (userAppliances != null) {
-            for (ApplianceConfig app : userAppliances.values()) {
-                if (app.isOwned() && app.isAlwaysOn()) {
-                    totalAlwaysOnWatts += app.getWattage();
-                }
-            }
-        }
-        if (totalAlwaysOnWatts == 0) totalAlwaysOnWatts = 160;
-
-        double activeHours = Math.max(0.0, 24.0 - outageHours);
-        double updatedCo2 = CarbonCalculator.calculateElectricityCo2(totalAlwaysOnWatts, activeHours, userGreenPercent);
-
-        String docId = "baseline_" + new SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(calendar.getTime());
-        long timestamp = calendar.getTimeInMillis();
-
-        ActivityLog baseloadLog = new ActivityLog(
-                docId,
-                "Energy",
-                "Baseload (Always-On Devices)",
-                updatedCo2,
-                selectedDateStr,
-                timestamp
-        );
-
-        db.collection("users").document(userId)
-                .collection("activity_logs")
-                .document(docId)
-                .set(baseloadLog)
-                .addOnSuccessListener(aVoid -> Toast.makeText(this,
-                        String.format(Locale.getDefault(), "Baseload updated (%.1fh active run time)", activeHours),
-                        Toast.LENGTH_SHORT).show())
-                .addOnFailureListener(e -> Toast.makeText(this, "Failed to update baseload: " + e.getMessage(), Toast.LENGTH_SHORT).show());
-    }
-
     private void showAddActivityDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        View dialogView = LayoutInflater.from(this).inflate(R.layout.activity_dialog_add_log, null);
-
-        Spinner spCategory = dialogView.findViewById(R.id.spCategory);
-        Spinner spAppliance = dialogView.findViewById(R.id.spAppliance);
-        Spinner spTransportMode = dialogView.findViewById(R.id.spTransportMode);
-        Spinner spMealType = dialogView.findViewById(R.id.spMealType);
-
-        EditText etHoursUsed = dialogView.findViewById(R.id.etHoursUsed);
-        EditText etOrigin = dialogView.findViewById(R.id.etOrigin);
-        EditText etDestination = dialogView.findViewById(R.id.etDestination);
-        EditText etDistance = dialogView.findViewById(R.id.etDistance);
-        EditText etMealCount = dialogView.findViewById(R.id.etMealCount);
-
-        Button btnPickOriginMap = dialogView.findViewById(R.id.btnPickOriginMap);
-        Button btnPickDestMap = dialogView.findViewById(R.id.btnPickDestMap);
-        Button btnCalculateDistance = dialogView.findViewById(R.id.btnCalculateDistance);
-        ProgressBar pbLoading = dialogView.findViewById(R.id.pbLoading);
-        TextView tvCalculatedCo2 = dialogView.findViewById(R.id.tvCalculatedCo2);
-
-        LinearLayout layoutElectricity = dialogView.findViewById(R.id.layoutElectricity);
-        LinearLayout layoutTransport = dialogView.findViewById(R.id.layoutTransport);
-        LinearLayout layoutMeals = dialogView.findViewById(R.id.layoutMeals);
-
-        spCategory.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"Energy", "Transport", "Meals"}));
-        spAppliance.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, getAvailableManualApplianceNames()));
-        spTransportMode.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"Car", "Electric Vehicle (EV)", "Bus", "Motorbike", "Train", "Bicycle / Walking"}));
-        spMealType.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"High Meat (Beef / Lamb)", "Low Meat (Poultry / Fish)", "Vegetarian", "Vegan"}));
-
-        final int[] lastDurationMins = {0};
-
-        Runnable updateLiveTransportEmissions = () -> {
-            if (etDistance == null || spTransportMode == null || tvCalculatedCo2 == null) return;
-            String distStr = etDistance.getText().toString().trim();
-            if (distStr.isEmpty()) return;
-
-            try {
-                double dist = Double.parseDouble(distStr);
-                if (dist > 0) {
-                    String mode = spTransportMode.getSelectedItem().toString();
-                    double co2Emitted = CarbonCalculator.calculateTransportCo2(mode, dist);
-                    if (lastDurationMins[0] > 0) {
-                        tvCalculatedCo2.setText(String.format(Locale.getDefault(), "Distance: %.1f km (%d mins) • %.2f kg CO₂", dist, lastDurationMins[0], co2Emitted));
-                    } else {
-                        tvCalculatedCo2.setText(String.format(Locale.getDefault(), "Distance: %.1f km • %.2f kg CO₂", dist, co2Emitted));
-                    }
-                }
-            } catch (NumberFormatException ignored) {}
-        };
-
-        spTransportMode.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                updateLiveTransportEmissions.run();
-            }
-            @Override public void onNothingSelected(AdapterView<?> parent) {}
-        });
-
-        if (etDistance != null) {
-            etDistance.addTextChangedListener(new TextWatcher() {
-                @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-                @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
-                    updateLiveTransportEmissions.run();
-                }
-                @Override public void afterTextChanged(Editable s) {}
-            });
-        }
-
-        spCategory.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                layoutElectricity.setVisibility(position == 0 ? View.VISIBLE : View.GONE);
-                layoutTransport.setVisibility(position == 1 ? View.VISIBLE : View.GONE);
-                layoutMeals.setVisibility(position == 2 ? View.VISIBLE : View.GONE);
-            }
-            @Override public void onNothingSelected(AdapterView<?> parent) {}
-        });
-
-        if (btnPickOriginMap != null && etOrigin != null) {
-            btnPickOriginMap.setOnClickListener(v -> {
-                pendingMapEditText = etOrigin;
-                mapPickerLauncher.launch(new Intent(DashboardActivity.this, MapPickerActivity.class));
-            });
-        }
-
-        if (btnPickDestMap != null && etDestination != null) {
-            btnPickDestMap.setOnClickListener(v -> {
-                pendingMapEditText = etDestination;
-                mapPickerLauncher.launch(new Intent(DashboardActivity.this, MapPickerActivity.class));
-            });
-        }
-
-        if (btnCalculateDistance != null) {
-            btnCalculateDistance.setOnClickListener(v -> {
-                String origin = etOrigin != null ? etOrigin.getText().toString().trim() : "";
-                String destination = etDestination != null ? etDestination.getText().toString().trim() : "";
-
-                if (TextUtils.isEmpty(origin) || TextUtils.isEmpty(destination)) {
-                    Toast.makeText(this, "Please enter or pick origin and destination", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-
-                if (pbLoading != null) pbLoading.setVisibility(View.VISIBLE);
-                btnCalculateDistance.setEnabled(false);
-
-                MapApiClient.fetchDistance(origin, destination, new MapApiClient.DistanceCallback() {
-                    @Override
-                    public void onSuccess(double distanceKm, int durationMinutes) {
-                        if (pbLoading != null) pbLoading.setVisibility(View.GONE);
-                        btnCalculateDistance.setEnabled(true);
-
-                        lastDurationMins[0] = durationMinutes;
-                        if (etDistance != null) etDistance.setText(String.format(Locale.getDefault(), "%.1f", distanceKm));
-                        updateLiveTransportEmissions.run();
-                    }
-
-                    @Override
-                    public void onError(String errorMessage) {
-                        if (pbLoading != null) pbLoading.setVisibility(View.GONE);
-                        btnCalculateDistance.setEnabled(true);
-                        Toast.makeText(DashboardActivity.this, errorMessage, Toast.LENGTH_SHORT).show();
-                    }
-                });
-            });
-        }
-
-        builder.setView(dialogView)
-                .setPositiveButton("Calculate & Log", (dialog, which) -> {
-                    String category = spCategory.getSelectedItem().toString();
-                    double calculatedCo2 = 0.0;
-                    String title = "";
-
-                    if ("Energy".equalsIgnoreCase(category)) {
-                        String applianceName = spAppliance.getSelectedItem().toString();
-                        int watts = userAppliances.containsKey(applianceName) ? userAppliances.get(applianceName).getWattage() : CarbonCalculator.DEFAULT_APPLIANCE_WATTS.getOrDefault(applianceName, 100);
-
-                        String hoursStr = etHoursUsed.getText().toString().trim();
-                        if (TextUtils.isEmpty(hoursStr)) {
-                            Toast.makeText(this, "Please enter hours used", Toast.LENGTH_SHORT).show();
-                            return;
-                        }
-
-                        double activeHours = Double.parseDouble(hoursStr);
-                        if (activeHours <= 0 || activeHours > 24.0) {
-                            Toast.makeText(this, "Hours used must be between 0.1 and 24.0 hours", Toast.LENGTH_LONG).show();
-                            return;
-                        }
-
-                        calculatedCo2 = CarbonCalculator.calculateElectricityCo2(watts, activeHours, userGreenPercent);
-                        title = applianceName;
-
-                    } else if ("Transport".equalsIgnoreCase(category)) {
-                        String mode = spTransportMode.getSelectedItem().toString();
-                        String distStr = etDistance.getText().toString().trim();
-
-                        if (TextUtils.isEmpty(distStr)) {
-                            Toast.makeText(this, "Please enter distance traveled", Toast.LENGTH_SHORT).show();
-                            return;
-                        }
-
-                        double dist = Double.parseDouble(distStr);
-                        if (dist <= 0) {
-                            Toast.makeText(this, "Distance must be greater than 0 km", Toast.LENGTH_SHORT).show();
-                            return;
-                        }
-
-                        calculatedCo2 = CarbonCalculator.calculateTransportCo2(mode, dist);
-                        title = mode + " Travel";
-
-                    } else { // Meals
-                        String mealType = spMealType.getSelectedItem().toString();
-                        String countStr = etMealCount.getText().toString().trim();
-
-                        if (TextUtils.isEmpty(countStr)) {
-                            Toast.makeText(this, "Please enter meal count", Toast.LENGTH_SHORT).show();
-                            return;
-                        }
-
-                        int count = Integer.parseInt(countStr);
-                        if (count <= 0) {
-                            Toast.makeText(this, "Meal count must be at least 1", Toast.LENGTH_SHORT).show();
-                            return;
-                        }
-
-                        calculatedCo2 = CarbonCalculator.calculateMealCo2(mealType, count);
-                        title = mealType + " Meal";
-                    }
-
-                    saveActivityLog(title, category, calculatedCo2);
+        ActivityDialogHelper.showAddOrEditDialog(
+                this, null, userAppliances, userGreenPercent,
+                targetField -> {
+                    pendingMapEditText = targetField;
+                    mapPickerLauncher.launch(new Intent(DashboardActivity.this, MapPickerActivity.class));
+                },
+                (title, category, co2) -> repository.saveLog(title, category, co2, selectedDateStr, new FirestoreRepository.OperationCallback() {
+                    @Override public void onSuccess(String message) { Toast.makeText(DashboardActivity.this, message, Toast.LENGTH_SHORT).show(); }
+                    @Override public void onError(String error) { Toast.makeText(DashboardActivity.this, "Failed to save: " + error, Toast.LENGTH_SHORT).show(); }
                 })
-                .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss())
-                .create()
-                .show();
+        );
     }
 
     private void showEditActivityDialog(ActivityLog log) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        View dialogView = LayoutInflater.from(this).inflate(R.layout.activity_dialog_add_log, null);
-
-        Spinner spCategory = dialogView.findViewById(R.id.spCategory);
-        Spinner spAppliance = dialogView.findViewById(R.id.spAppliance);
-        Spinner spTransportMode = dialogView.findViewById(R.id.spTransportMode);
-        Spinner spMealType = dialogView.findViewById(R.id.spMealType);
-
-        EditText etHoursUsed = dialogView.findViewById(R.id.etHoursUsed);
-        EditText etOrigin = dialogView.findViewById(R.id.etOrigin);
-        EditText etDestination = dialogView.findViewById(R.id.etDestination);
-        EditText etDistance = dialogView.findViewById(R.id.etDistance);
-        EditText etMealCount = dialogView.findViewById(R.id.etMealCount);
-
-        Button btnCalculateDistance = dialogView.findViewById(R.id.btnCalculateDistance);
-        ProgressBar pbLoading = dialogView.findViewById(R.id.pbLoading);
-        TextView tvCalculatedCo2 = dialogView.findViewById(R.id.tvCalculatedCo2);
-
-        LinearLayout layoutElectricity = dialogView.findViewById(R.id.layoutElectricity);
-        LinearLayout layoutTransport = dialogView.findViewById(R.id.layoutTransport);
-        LinearLayout layoutMeals = dialogView.findViewById(R.id.layoutMeals);
-
-        spCategory.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"Energy", "Transport", "Meals"}));
-        spAppliance.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, getAvailableManualApplianceNames()));
-        spTransportMode.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"Car", "Electric Vehicle (EV)", "Bus", "Motorbike", "Train", "Bicycle / Walking"}));
-        spMealType.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"High Meat (Beef / Lamb)", "Low Meat (Poultry / Fish)", "Vegetarian", "Vegan"}));
-
-        int selectedIndex = 0;
-        if ("Transport".equalsIgnoreCase(log.getCategory())) selectedIndex = 1;
-        else if ("Meals".equalsIgnoreCase(log.getCategory())) selectedIndex = 2;
-
-        spCategory.setSelection(selectedIndex);
-        layoutElectricity.setVisibility(selectedIndex == 0 ? View.VISIBLE : View.GONE);
-        layoutTransport.setVisibility(selectedIndex == 1 ? View.VISIBLE : View.GONE);
-        layoutMeals.setVisibility(selectedIndex == 2 ? View.VISIBLE : View.GONE);
-
-        final int[] lastDurationMins = {0};
-
-        Runnable updateLiveTransportEmissions = () -> {
-            if (etDistance == null || spTransportMode == null || tvCalculatedCo2 == null) return;
-            String distStr = etDistance.getText().toString().trim();
-            if (distStr.isEmpty()) return;
-
-            try {
-                double dist = Double.parseDouble(distStr);
-                if (dist > 0) {
-                    String mode = spTransportMode.getSelectedItem().toString();
-                    double co2Emitted = CarbonCalculator.calculateTransportCo2(mode, dist);
-                    if (lastDurationMins[0] > 0) {
-                        tvCalculatedCo2.setText(String.format(Locale.getDefault(), "Distance: %.1f km (%d mins) • %.2f kg CO₂", dist, lastDurationMins[0], co2Emitted));
-                    } else {
-                        tvCalculatedCo2.setText(String.format(Locale.getDefault(), "Distance: %.1f km • %.2f kg CO₂", dist, co2Emitted));
-                    }
-                }
-            } catch (NumberFormatException ignored) {}
-        };
-
-        spTransportMode.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                updateLiveTransportEmissions.run();
-            }
-            @Override public void onNothingSelected(AdapterView<?> parent) {}
-        });
-
-        if (etDistance != null) {
-            etDistance.addTextChangedListener(new TextWatcher() {
-                @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-                @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
-                    updateLiveTransportEmissions.run();
-                }
-                @Override public void afterTextChanged(Editable s) {}
-            });
-        }
-
-        spCategory.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                layoutElectricity.setVisibility(position == 0 ? View.VISIBLE : View.GONE);
-                layoutTransport.setVisibility(position == 1 ? View.VISIBLE : View.GONE);
-                layoutMeals.setVisibility(position == 2 ? View.VISIBLE : View.GONE);
-            }
-            @Override public void onNothingSelected(AdapterView<?> parent) {}
-        });
-
-        if (btnCalculateDistance != null) {
-            btnCalculateDistance.setOnClickListener(v -> {
-                String origin = etOrigin != null ? etOrigin.getText().toString().trim() : "";
-                String destination = etDestination != null ? etDestination.getText().toString().trim() : "";
-
-                if (TextUtils.isEmpty(origin) || TextUtils.isEmpty(destination)) {
-                    Toast.makeText(this, "Please enter origin and destination", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-
-                if (pbLoading != null) pbLoading.setVisibility(View.VISIBLE);
-                btnCalculateDistance.setEnabled(false);
-
-                MapApiClient.fetchDistance(origin, destination, new MapApiClient.DistanceCallback() {
-                    @Override
-                    public void onSuccess(double distanceKm, int durationMinutes) {
-                        if (pbLoading != null) pbLoading.setVisibility(View.GONE);
-                        btnCalculateDistance.setEnabled(true);
-
-                        lastDurationMins[0] = durationMinutes;
-                        if (etDistance != null) etDistance.setText(String.format(Locale.getDefault(), "%.1f", distanceKm));
-                        updateLiveTransportEmissions.run();
-                    }
-
-                    @Override
-                    public void onError(String errorMessage) {
-                        if (pbLoading != null) pbLoading.setVisibility(View.GONE);
-                        btnCalculateDistance.setEnabled(true);
-                        Toast.makeText(DashboardActivity.this, errorMessage, Toast.LENGTH_SHORT).show();
-                    }
-                });
-            });
-        }
-
-        builder.setView(dialogView)
-                .setTitle("Edit Activity Log")
-                .setPositiveButton("Update Log", (dialog, which) -> {
-                    String category = spCategory.getSelectedItem().toString();
-                    double calculatedCo2 = 0.0;
-                    String title = "";
-
-                    if ("Energy".equalsIgnoreCase(category)) {
-                        String applianceName = spAppliance.getSelectedItem().toString();
-                        int watts = userAppliances.containsKey(applianceName) ? userAppliances.get(applianceName).getWattage() : CarbonCalculator.DEFAULT_APPLIANCE_WATTS.getOrDefault(applianceName, 100);
-
-                        String hoursStr = etHoursUsed.getText().toString().trim();
-                        if (TextUtils.isEmpty(hoursStr)) {
-                            Toast.makeText(this, "Please enter hours used", Toast.LENGTH_SHORT).show();
-                            return;
-                        }
-
-                        double activeHours = Double.parseDouble(hoursStr);
-                        if (activeHours <= 0 || activeHours > 24.0) {
-                            Toast.makeText(this, "Hours used must be between 0.1 and 24.0 hours", Toast.LENGTH_LONG).show();
-                            return;
-                        }
-
-                        calculatedCo2 = CarbonCalculator.calculateElectricityCo2(watts, activeHours, userGreenPercent);
-                        title = applianceName;
-
-                    } else if ("Transport".equalsIgnoreCase(category)) {
-                        String mode = spTransportMode.getSelectedItem().toString();
-                        String distStr = etDistance.getText().toString().trim();
-
-                        if (TextUtils.isEmpty(distStr)) {
-                            Toast.makeText(this, "Please enter distance traveled", Toast.LENGTH_SHORT).show();
-                            return;
-                        }
-
-                        double dist = Double.parseDouble(distStr);
-                        if (dist <= 0) {
-                            Toast.makeText(this, "Distance must be greater than 0 km", Toast.LENGTH_SHORT).show();
-                            return;
-                        }
-
-                        calculatedCo2 = CarbonCalculator.calculateTransportCo2(mode, dist);
-                        title = mode + " Travel";
-
-                    } else { // Meals
-                        String mealType = spMealType.getSelectedItem().toString();
-                        String countStr = etMealCount.getText().toString().trim();
-
-                        if (TextUtils.isEmpty(countStr)) {
-                            Toast.makeText(this, "Please enter meal count", Toast.LENGTH_SHORT).show();
-                            return;
-                        }
-
-                        int count = Integer.parseInt(countStr);
-                        if (count <= 0) {
-                            Toast.makeText(this, "Meal count must be at least 1", Toast.LENGTH_SHORT).show();
-                            return;
-                        }
-
-                        calculatedCo2 = CarbonCalculator.calculateMealCo2(mealType, count);
-                        title = mealType + " Meal";
-                    }
-
-                    updateExistingActivityLog(log, title, category, calculatedCo2);
+        ActivityDialogHelper.showAddOrEditDialog(
+                this, log, userAppliances, userGreenPercent,
+                targetField -> {
+                    pendingMapEditText = targetField;
+                    mapPickerLauncher.launch(new Intent(DashboardActivity.this, MapPickerActivity.class));
+                },
+                (title, category, co2) -> repository.updateLog(log, title, category, co2, new FirestoreRepository.OperationCallback() {
+                    @Override public void onSuccess(String message) { Toast.makeText(DashboardActivity.this, message, Toast.LENGTH_SHORT).show(); }
+                    @Override public void onError(String error) { Toast.makeText(DashboardActivity.this, "Failed to update: " + error, Toast.LENGTH_SHORT).show(); }
                 })
-                .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss())
-                .create()
-                .show();
+        );
+    }
+
+    private void showReportOutageDialog() {
+        ActivityDialogHelper.showReportOutageDialog(this, selectedDateStr, outageHours -> repository.updateBaseload(
+                calendar, selectedDateStr, outageHours, userAppliances, userGreenPercent, new FirestoreRepository.OperationCallback() {
+                    @Override public void onSuccess(String message) { Toast.makeText(DashboardActivity.this, message, Toast.LENGTH_SHORT).show(); }
+                    @Override public void onError(String error) { Toast.makeText(DashboardActivity.this, "Failed: " + error, Toast.LENGTH_SHORT).show(); }
+                }
+        ));
     }
 
     private void confirmDeleteLog(ActivityLog log) {
+        if (log.getTitle().contains("Baseload") || (log.getId() != null && log.getId().startsWith("baseline_"))) {
+            Toast.makeText(this, "Baseload log is automated and cannot be deleted. Report power outage to adjust.", Toast.LENGTH_LONG).show();
+            return;
+        }
         new AlertDialog.Builder(this)
                 .setTitle("Delete Activity")
                 .setMessage("Are you sure you want to delete \"" + log.getTitle() + "\"?")
-                .setPositiveButton("Delete", (dialog, which) -> {
-                    db.collection("users").document(userId)
-                            .collection("activity_logs")
-                            .document(log.getId())
-                            .delete()
-                            .addOnSuccessListener(aVoid -> Toast.makeText(DashboardActivity.this, "Log deleted", Toast.LENGTH_SHORT).show())
-                            .addOnFailureListener(e -> Toast.makeText(DashboardActivity.this, "Delete failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
-                })
+                .setPositiveButton("Delete", (dialog, which) -> repository.deleteLog(log.getId(), new FirestoreRepository.OperationCallback() {
+                    @Override public void onSuccess(String message) { Toast.makeText(DashboardActivity.this, message, Toast.LENGTH_SHORT).show(); }
+                    @Override public void onError(String error) { Toast.makeText(DashboardActivity.this, "Delete failed: " + error, Toast.LENGTH_SHORT).show(); }
+                }))
                 .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss())
                 .show();
-    }
-
-    private void saveActivityLog(String title, String category, double co2Amount) {
-        String logId = db.collection("users").document(userId).collection("activity_logs").document().getId();
-        long timestamp = System.currentTimeMillis();
-
-        ActivityLog newLog = new ActivityLog(logId, category, title, co2Amount, selectedDateStr, timestamp);
-
-        db.collection("users").document(userId)
-                .collection("activity_logs")
-                .document(logId)
-                .set(newLog)
-                .addOnSuccessListener(aVoid -> Toast.makeText(DashboardActivity.this,
-                        String.format(Locale.getDefault(), "Logged: %.2f kg CO₂ calculated!", co2Amount),
-                        Toast.LENGTH_SHORT).show())
-                .addOnFailureListener(e -> Toast.makeText(DashboardActivity.this, "Failed to log: " + e.getMessage(), Toast.LENGTH_SHORT).show());
-    }
-
-    private void updateExistingActivityLog(ActivityLog oldLog, String title, String category, double newCo2Amount) {
-        ActivityLog updatedLog = new ActivityLog(oldLog.getId(), category, title, newCo2Amount, oldLog.getDate(), oldLog.getTimestamp());
-
-        db.collection("users").document(userId)
-                .collection("activity_logs")
-                .document(oldLog.getId())
-                .set(updatedLog)
-                .addOnSuccessListener(aVoid -> Toast.makeText(DashboardActivity.this, "Log updated successfully!", Toast.LENGTH_SHORT).show())
-                .addOnFailureListener(e -> Toast.makeText(DashboardActivity.this, "Failed to update: " + e.getMessage(), Toast.LENGTH_SHORT).show());
     }
 }

@@ -41,7 +41,7 @@ public class ReminderReceiver extends BroadcastReceiver {
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_popup_reminder)
                 .setContentTitle("🌿 CarbonWise Daily Check-in")
-                .setContentText("Don't forget to log your travel, meal choices, and energy usage for today!")
+                .setContentText("Don't forget to log your travel, meal choices, and electricity usage for today!")
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .setContentIntent(pendingIntent)
                 .setAutoCancel(true);

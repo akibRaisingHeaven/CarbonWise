@@ -1,19 +1,13 @@
 package com.example.carbonwise;
 
-import android.Manifest;
 import android.app.Activity;
-import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
+import android.graphics.RectF;
 import android.location.Address;
 import android.location.Geocoder;
-import android.location.Location;
-import android.location.LocationListener;
-import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.preference.PreferenceManager;
 import android.util.Log;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
@@ -23,26 +17,23 @@ import android.widget.ImageButton;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
-import org.osmdroid.config.Configuration;
-import org.osmdroid.events.MapListener;
-import org.osmdroid.events.ScrollEvent;
-import org.osmdroid.events.ZoomEvent;
-import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase;
-import org.osmdroid.util.GeoPoint;
-import org.osmdroid.util.MapTileIndex;
-import org.osmdroid.views.MapView;
+import org.maplibre.android.MapLibre;
+import org.maplibre.android.camera.CameraPosition;
+import org.maplibre.android.camera.CameraUpdateFactory;
+import org.maplibre.android.geometry.LatLng;
+import org.maplibre.android.maps.MapLibreMap;
+import org.maplibre.android.maps.MapView;
+import org.maplibre.geojson.Feature;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -52,87 +43,75 @@ import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+/**
+ * Location picker built on MapLibre + OpenFreeMap (free, no API key, no billing account).
+ *
+ * The pin is fixed at the center of the map. When the map stops moving, the place name is
+ * read from the label the map itself is drawing under the pin, so the name always matches
+ * what the user sees. If there is no label under the pin, the name comes from a reverse lookup.
+ * The exact coordinates are always returned together with the name.
+ */
 public class MapPickerActivity extends AppCompatActivity {
 
-    private static final int LOCATION_PERMISSION_REQUEST_CODE = 1001;
+    private static final String STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
+    private static final String USER_AGENT = "CarbonWiseApp/1.0 (com.example.carbonwise)";
 
     private MapView mapView;
-    private TextView tvSelectedLocation;
+    private MapLibreMap map;
+
+    private TextView tvSelectedLocation, tvSelectedCoords;
     private EditText etMapSearch;
     private Button btnMapSearch, btnConfirmLocation;
     private ImageButton btnBack;
     private FloatingActionButton fabMyLocation;
 
     private String selectedPlaceName = "";
-    private double selectedLat = 0.0;
-    private double selectedLon = 0.0;
+    private boolean nameReady = false;
+    private String pendingSearchName = null;
+    private int resolveGeneration = 0;
 
-    private final ExecutorService reverseGeocodeExecutor = Executors.newSingleThreadExecutor();
-    private final ExecutorService searchExecutor = Executors.newSingleThreadExecutor();
-
+    private final ExecutorService networkExecutor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private final Handler debounceHandler = new Handler(Looper.getMainLooper());
-    private Runnable pendingReverseGeocode;
 
-    public static final OnlineTileSourceBase ESRI_STREET_MAP = new OnlineTileSourceBase(
-            "EsriWorldStreetMap",
-            0, 19, 256, "",
-            new String[]{"https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/"},
-            "Tiles © Esri"
-    ) {
-        @Override
-        public String getTileURLString(final long pMapTileIndex) {
-            return getBaseUrl()
-                    + MapTileIndex.getZoom(pMapTileIndex) + "/"
-                    + MapTileIndex.getY(pMapTileIndex) + "/"
-                    + MapTileIndex.getX(pMapTileIndex);
-        }
-    };
+    private final ActivityResultLauncher<String[]> locationPermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), result -> {
+                if (GpsLocationHelper.hasPermission(this)) {
+                    moveToMyLocation();
+                } else {
+                    Toast.makeText(this, "Location permission is required to find your current location", Toast.LENGTH_SHORT).show();
+                }
+            });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        Configuration.getInstance().load(getApplicationContext(), PreferenceManager.getDefaultSharedPreferences(getApplicationContext()));
-        Configuration.getInstance().setUserAgentValue("CarbonWiseApp/1.0 (" + getPackageName() + ")");
-
-        clearOsmTileCache();
-
+        MapLibre.getInstance(this);
         setContentView(R.layout.activity_map_picker);
 
         mapView = findViewById(R.id.mapView);
         tvSelectedLocation = findViewById(R.id.tvSelectedLocation);
+        tvSelectedCoords = findViewById(R.id.tvSelectedCoords);
         etMapSearch = findViewById(R.id.etMapSearch);
         btnMapSearch = findViewById(R.id.btnMapSearch);
         btnConfirmLocation = findViewById(R.id.btnConfirmLocation);
         btnBack = findViewById(R.id.btnBack);
         fabMyLocation = findViewById(R.id.fabMyLocation);
 
-        mapView.setTileSource(ESRI_STREET_MAP);
-        mapView.setMultiTouchControls(true);
+        mapView.onCreate(savedInstanceState);
+        mapView.getMapAsync(m -> {
+            map = m;
+            map.getUiSettings().setRotateGesturesEnabled(false);
+            map.getUiSettings().setTiltGesturesEnabled(false);
+            map.setCameraPosition(new CameraPosition.Builder()
+                    .target(new LatLng(MapApiClient.DEFAULT_LAT, MapApiClient.DEFAULT_LON))
+                    .zoom(13.0)
+                    .build());
 
-        mapView.post(() -> {
-            GeoPoint startPoint = new GeoPoint(23.8103, 90.4125); // Default: Dhaka
-            mapView.getController().setZoom(13.0);
-            mapView.getController().setCenter(startPoint);
-            updateCenterCoordinatesTextOnly();
-            scheduleDebouncedReverseGeocode();
-        });
+            map.addOnCameraMoveStartedListener(reason -> onMapMoveStarted());
+            map.addOnCameraIdleListener(this::onMapIdle);
 
-        mapView.addMapListener(new MapListener() {
-            @Override
-            public boolean onScroll(ScrollEvent event) {
-                updateCenterCoordinatesTextOnly();
-                scheduleDebouncedReverseGeocode();
-                return true;
-            }
-
-            @Override
-            public boolean onZoom(ZoomEvent event) {
-                updateCenterCoordinatesTextOnly();
-                scheduleDebouncedReverseGeocode();
-                return true;
-            }
+            map.setStyle(STYLE_URL, style -> onMapIdle());
         });
 
         if (btnBack != null) {
@@ -148,36 +127,102 @@ public class MapPickerActivity extends AppCompatActivity {
             return false;
         });
 
-        fabMyLocation.setOnClickListener(v -> fetchAndMoveToCurrentLocation());
-
-        btnConfirmLocation.setOnClickListener(v -> {
-            if (selectedPlaceName.isEmpty()) {
-                selectedPlaceName = String.format(Locale.US, "%.5f, %.5f", selectedLat, selectedLon);
+        fabMyLocation.setOnClickListener(v -> {
+            if (GpsLocationHelper.hasPermission(this)) {
+                moveToMyLocation();
+            } else {
+                locationPermissionLauncher.launch(new String[]{
+                        android.Manifest.permission.ACCESS_FINE_LOCATION,
+                        android.Manifest.permission.ACCESS_COARSE_LOCATION});
             }
-            Intent resultIntent = new Intent();
-            resultIntent.putExtra("location_name", selectedPlaceName);
-            resultIntent.putExtra("lat", selectedLat);
-            resultIntent.putExtra("lon", selectedLon);
-            setResult(Activity.RESULT_OK, resultIntent);
-            finish();
+        });
+
+        btnConfirmLocation.setOnClickListener(v -> confirmLocation());
+    }
+
+    // ---------- Map events ----------
+
+    private void onMapMoveStarted() {
+        nameReady = false;
+        tvSelectedLocation.setText("Move the map to place the pin...");
+    }
+
+    private void onMapIdle() {
+        if (map == null || map.getStyle() == null) return;
+        LatLng center = map.getCameraPosition().target;
+        if (center == null) return;
+
+        tvSelectedCoords.setText(String.format(Locale.US, "%.5f, %.5f", center.getLatitude(), center.getLongitude()));
+
+        // A search just moved the map here: keep the name the user searched for
+        if (pendingSearchName != null) {
+            setPlaceName(pendingSearchName);
+            pendingSearchName = null;
+            return;
+        }
+
+        resolvePlaceNameAtPin(center);
+    }
+
+    private void resolvePlaceNameAtPin(LatLng center) {
+        final int generation = ++resolveGeneration;
+
+        // 1) Prefer the label the map is actually drawing under the pin
+        String label = labelUnderPin();
+        if (label != null) {
+            setPlaceName(label);
+            return;
+        }
+
+        // 2) Otherwise ask for the nearest named place
+        tvSelectedLocation.setText("Locating...");
+        networkExecutor.execute(() -> {
+            String name = reverseGeocode(center.getLatitude(), center.getLongitude());
+            mainHandler.post(() -> {
+                // Ignore late answers for a spot the user has already moved away from
+                if (generation != resolveGeneration || isFinishing()) return;
+                setPlaceName(name != null ? name : "Selected location");
+            });
         });
     }
 
-    private void updateCenterCoordinatesTextOnly() {
-        GeoPoint center = (GeoPoint) mapView.getMapCenter();
-        if (center == null) return;
-        selectedLat = center.getLatitude();
-        selectedLon = center.getLongitude();
-        tvSelectedLocation.setText(String.format(Locale.US, "Lat: %.4f, Lon: %.4f", selectedLat, selectedLon));
+    private String labelUnderPin() {
+        try {
+            float cx = mapView.getWidth() / 2f;
+            float cy = mapView.getHeight() / 2f;
+            float r = 24f * getResources().getDisplayMetrics().density;
+            List<Feature> features = map.queryRenderedFeatures(new RectF(cx - r, cy - r, cx + r, cy + r));
+            for (Feature f : features) {
+                String name = bestName(f);
+                if (name != null) return name;
+            }
+        } catch (Exception e) {
+            Log.e("MapPicker", "queryRenderedFeatures failed", e);
+        }
+        return null;
     }
 
-    private void scheduleDebouncedReverseGeocode() {
-        if (pendingReverseGeocode != null) {
-            debounceHandler.removeCallbacks(pendingReverseGeocode);
+    private String bestName(Feature f) {
+        String[] keys = {"name_en", "name:latin", "name"};
+        for (String key : keys) {
+            try {
+                if (f.hasProperty(key)) {
+                    String value = f.getStringProperty(key);
+                    if (value != null && !value.trim().isEmpty()) return value.trim();
+                }
+            } catch (Exception ignored) {
+            }
         }
-        pendingReverseGeocode = () -> fetchAddressName(selectedLat, selectedLon);
-        debounceHandler.postDelayed(pendingReverseGeocode, 500);
+        return null;
     }
+
+    private void setPlaceName(String name) {
+        selectedPlaceName = name;
+        nameReady = true;
+        tvSelectedLocation.setText("📍 " + name);
+    }
+
+    // ---------- Search ----------
 
     private void searchLocationName() {
         String query = etMapSearch.getText().toString().trim();
@@ -194,219 +239,155 @@ public class MapPickerActivity extends AppCompatActivity {
         Toast.makeText(this, "Searching for \"" + query + "\"...", Toast.LENGTH_SHORT).show();
         btnMapSearch.setEnabled(false);
 
-        searchExecutor.execute(() -> {
-            boolean found = false;
+        networkExecutor.execute(() -> {
+            // Same OpenStreetMap data as the map itself, so results line up with what is drawn
+            double[] found = nominatimSearch(query);
+            String name = query;
 
-            if (Geocoder.isPresent()) {
+            if (found == null && Geocoder.isPresent()) {
                 try {
-                    Geocoder geocoder = new Geocoder(MapPickerActivity.this, Locale.getDefault());
-                    List<Address> addresses = geocoder.getFromLocationName(query, 1);
+                    List<Address> addresses = new Geocoder(this, Locale.getDefault()).getFromLocationName(query, 1);
                     if (addresses != null && !addresses.isEmpty()) {
-                        Address addr = addresses.get(0);
-                        double lat = addr.getLatitude();
-                        double lon = addr.getLongitude();
-                        String name = addr.getLocality() != null ? addr.getLocality() : addr.getAddressLine(0);
-
-                        mainHandler.post(() -> {
-                            btnMapSearch.setEnabled(true);
-                            GeoPoint target = new GeoPoint(lat, lon);
-                            mapView.getController().animateTo(target);
-                            mapView.getController().setZoom(14.0);
-                            selectedPlaceName = name;
-                            tvSelectedLocation.setText("📍 " + selectedPlaceName);
-                        });
-                        found = true;
+                        Address a = addresses.get(0);
+                        found = new double[]{a.getLatitude(), a.getLongitude()};
+                        if (a.getLocality() != null) name = a.getLocality();
                     }
                 } catch (Exception e) {
                     Log.e("MapPicker", "Native Geocoder failed", e);
                 }
             }
 
-            if (!found) {
-                try {
-                    String encoded = URLEncoder.encode(query, "UTF-8");
-                    String urlStr = "https://nominatim.openstreetmap.org/search?q=" + encoded + "&format=json&limit=1";
-                    URL url = new URL(urlStr);
-                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                    conn.setRequestMethod("GET");
-                    conn.setRequestProperty("User-Agent", "CarbonWiseApp/1.0 (" + getPackageName() + ")");
-                    conn.setConnectTimeout(4000);
-                    conn.setReadTimeout(4000);
+            final double[] result = found;
+            final String foundName = lastSearchName != null ? lastSearchName : name;
+            lastSearchName = null;
 
-                    if (conn.getResponseCode() == 200) {
-                        BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                        StringBuilder sb = new StringBuilder();
-                        String line;
-                        while ((line = reader.readLine()) != null) sb.append(line);
-                        reader.close();
-
-                        JSONArray array = new JSONArray(sb.toString());
-                        if (array.length() > 0) {
-                            JSONObject item = array.getJSONObject(0);
-                            double lat = item.getDouble("lat");
-                            double lon = item.getDouble("lon");
-                            String displayName = item.optString("display_name");
-
-                            mainHandler.post(() -> {
-                                btnMapSearch.setEnabled(true);
-                                GeoPoint target = new GeoPoint(lat, lon);
-                                mapView.getController().animateTo(target);
-                                mapView.getController().setZoom(14.0);
-                                selectedPlaceName = displayName.split(",")[0].trim();
-                                tvSelectedLocation.setText("📍 " + selectedPlaceName);
-                            });
-                            found = true;
-                        }
-                    }
-                } catch (Exception e) {
-                    Log.e("MapPicker", "Nominatim Search HTTP error", e);
+            mainHandler.post(() -> {
+                btnMapSearch.setEnabled(true);
+                if (result == null) {
+                    Toast.makeText(this, "Location not found", Toast.LENGTH_SHORT).show();
+                    return;
                 }
+                pendingSearchName = foundName;
+                setPlaceName(foundName);
+                map.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(result[0], result[1]), 15.0), 800);
+            });
+        });
+    }
+
+    private String lastSearchName = null;
+
+    private double[] nominatimSearch(String query) {
+        try {
+            String urlStr = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q="
+                    + URLEncoder.encode(query, "UTF-8");
+            JSONArray array = new JSONArray(httpGet(urlStr));
+            if (array.length() > 0) {
+                JSONObject item = array.getJSONObject(0);
+                String display = item.optString("name", "");
+                if (display.isEmpty()) display = item.optString("display_name", "").split(",")[0].trim();
+                lastSearchName = display.isEmpty() ? null : display;
+                return new double[]{item.getDouble("lat"), item.getDouble("lon")};
+            }
+        } catch (Exception e) {
+            Log.e("MapPicker", "Nominatim search error", e);
+        }
+        return null;
+    }
+
+    private String reverseGeocode(double lat, double lon) {
+        try {
+            String urlStr = String.format(Locale.US,
+                    "https://nominatim.openstreetmap.org/reverse?format=json&zoom=17&lat=%f&lon=%f", lat, lon);
+            JSONObject json = new JSONObject(httpGet(urlStr));
+            String name = json.optString("name", "");
+            if (name.isEmpty()) {
+                String display = json.optString("display_name", "");
+                if (!display.isEmpty()) name = display.split(",")[0].trim();
+            }
+            return name.isEmpty() ? null : name;
+        } catch (Exception e) {
+            Log.e("MapPicker", "Reverse geocode error", e);
+            return null;
+        }
+    }
+
+    private String httpGet(String urlStr) throws Exception {
+        HttpURLConnection conn = (HttpURLConnection) new URL(urlStr).openConnection();
+        conn.setRequestMethod("GET");
+        conn.setRequestProperty("User-Agent", USER_AGENT);
+        conn.setRequestProperty("Accept", "application/json");
+        conn.setConnectTimeout(5000);
+        conn.setReadTimeout(5000);
+        if (conn.getResponseCode() != 200) {
+            throw new Exception("HTTP " + conn.getResponseCode());
+        }
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) sb.append(line);
+            return sb.toString();
+        }
+    }
+
+    // ---------- My location ----------
+
+    private void moveToMyLocation() {
+        Toast.makeText(this, "Getting your location...", Toast.LENGTH_SHORT).show();
+        GpsLocationHelper.getCurrentLocation(this, new GpsLocationHelper.LocationCallback() {
+            @Override
+            public void onLocation(double latitude, double longitude) {
+                if (map == null) return;
+                map.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(latitude, longitude), 16.0), 800);
             }
 
-            if (!found) {
-                mainHandler.post(() -> {
-                    btnMapSearch.setEnabled(true);
-                    Toast.makeText(MapPickerActivity.this, "Location not found", Toast.LENGTH_SHORT).show();
-                });
+            @Override
+            public void onError(String reason) {
+                Toast.makeText(MapPickerActivity.this, "Could not get location: " + reason, Toast.LENGTH_LONG).show();
             }
         });
     }
 
-    private void fetchAddressName(double lat, double lon) {
-        reverseGeocodeExecutor.execute(() -> {
-            try {
-                String urlStr = String.format(Locale.US, "https://nominatim.openstreetmap.org/reverse?format=json&lat=%f&lon=%f", lat, lon);
-                URL url = new URL(urlStr);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("GET");
-                conn.setRequestProperty("User-Agent", "CarbonWiseApp/1.0 (" + getPackageName() + ")");
-                conn.setConnectTimeout(3000);
-                conn.setReadTimeout(3000);
+    // ---------- Confirm ----------
 
-                if (conn.getResponseCode() == 200) {
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                    StringBuilder sb = new StringBuilder();
-                    String line;
-                    while ((line = reader.readLine()) != null) sb.append(line);
-                    reader.close();
+    private void confirmLocation() {
+        if (map == null) return;
+        LatLng center = map.getCameraPosition().target;
+        if (center == null) return;
 
-                    JSONObject json = new JSONObject(sb.toString());
-                    String name = json.optString("display_name");
-                    if (!name.isEmpty()) {
-                        String[] parts = name.split(",");
-                        selectedPlaceName = (parts.length > 0 ? parts[0] : name).trim();
-                        mainHandler.post(() -> tvSelectedLocation.setText("📍 " + selectedPlaceName));
-                    }
-                }
-            } catch (Exception ignored) {}
-        });
+        double lat = center.getLatitude();
+        double lon = center.getLongitude();
+
+        // Only use the name if it belongs to the spot the pin is on right now
+        String name = (nameReady && !selectedPlaceName.isEmpty())
+                ? selectedPlaceName
+                : String.format(Locale.US, "%.5f, %.5f", lat, lon);
+
+        Intent resultIntent = new Intent();
+        resultIntent.putExtra("location_name", name);
+        resultIntent.putExtra("lat", lat);
+        resultIntent.putExtra("lon", lon);
+        setResult(Activity.RESULT_OK, resultIntent);
+        finish();
     }
 
-    private void fetchAndMoveToCurrentLocation() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
-            return;
-        }
+    // ---------- MapView lifecycle ----------
 
-        LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        if (locationManager == null) {
-            Toast.makeText(this, "Location service unavailable", Toast.LENGTH_SHORT).show();
-            return;
-        }
+    @Override protected void onStart() { super.onStart(); mapView.onStart(); }
+    @Override protected void onResume() { super.onResume(); mapView.onResume(); }
+    @Override protected void onPause() { super.onPause(); mapView.onPause(); }
+    @Override protected void onStop() { super.onStop(); mapView.onStop(); }
+    @Override public void onLowMemory() { super.onLowMemory(); mapView.onLowMemory(); }
 
-        boolean isGpsEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);
-        boolean isNetworkEnabled = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
-
-        if (!isGpsEnabled && !isNetworkEnabled) {
-            Toast.makeText(this, "Please turn on Location in system settings.", Toast.LENGTH_LONG).show();
-            return;
-        }
-
-        Location bestLocation = null;
-        try {
-            Location gpsLoc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-            Location netLoc = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
-            if (gpsLoc != null && netLoc != null) {
-                bestLocation = gpsLoc.getTime() > netLoc.getTime() ? gpsLoc : netLoc;
-            } else {
-                bestLocation = gpsLoc != null ? gpsLoc : netLoc;
-            }
-        } catch (SecurityException ignored) {}
-
-        if (bestLocation != null) {
-            moveMapToLocation(bestLocation);
-        } else {
-            Toast.makeText(this, "Acquiring GPS location...", Toast.LENGTH_SHORT).show();
-            try {
-                LocationListener locationListener = new LocationListener() {
-                    @Override
-                    public void onLocationChanged(@NonNull Location location) {
-                        moveMapToLocation(location);
-                        locationManager.removeUpdates(this);
-                    }
-                    @Override public void onStatusChanged(String provider, int status, Bundle extras) {}
-                    @Override public void onProviderEnabled(@NonNull String provider) {}
-                    @Override public void onProviderDisabled(@NonNull String provider) {}
-                };
-
-                if (isNetworkEnabled) {
-                    locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, locationListener, Looper.getMainLooper());
-                } else {
-                    locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener, Looper.getMainLooper());
-                }
-            } catch (SecurityException ignored) {}
-        }
-    }
-
-    private void moveMapToLocation(Location location) {
-        GeoPoint currentPoint = new GeoPoint(location.getLatitude(), location.getLongitude());
-        mapView.getController().animateTo(currentPoint);
-        mapView.getController().setZoom(16.0);
-        Toast.makeText(this, "Moved to current location", Toast.LENGTH_SHORT).show();
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        mapView.onSaveInstanceState(outState);
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                fetchAndMoveToCurrentLocation();
-            } else {
-                Toast.makeText(this, "Location permission is required to find your current location", Toast.LENGTH_SHORT).show();
-            }
-        }
-    }
-
-    private void clearOsmTileCache() {
-        try {
-            File cacheDir = new File(getCacheDir(), "osmdroid");
-            if (cacheDir.exists() && cacheDir.isDirectory()) {
-                deleteDirRecursive(cacheDir);
-            }
-        } catch (Exception ignored) {}
-    }
-
-    private boolean deleteDirRecursive(File dir) {
-        if (dir != null && dir.isDirectory()) {
-            String[] children = dir.list();
-            if (children != null) {
-                for (String child : children) {
-                    deleteDirRecursive(new File(dir, child));
-                }
-            }
-        }
-        return dir != null && dir.delete();
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        mapView.onResume();
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        mapView.onPause();
+    protected void onDestroy() {
+        super.onDestroy();
+        networkExecutor.shutdownNow();
+        mapView.onDestroy();
     }
 }

@@ -11,19 +11,44 @@ public class CarbonCalculator {
     public static final double DAILY_CARBON_BUDGET_KG = 15.0;
     public static final double DEFAULT_GRID_CO2_PER_KWH = 0.50; // Standard grid emission factor
 
-    // Transport emission factors (kg CO2 / km)
-    public static final double CO2_PER_KM_CAR = 0.192;
-    public static final double CO2_PER_KM_EV = 0.053;
-    public static final double CO2_PER_KM_BUS = 0.089;
-    public static final double CO2_PER_KM_BIKE = 0.103;
+    // Extended Transport Emission Factors (kg CO2 / km)
+    public static final double CO2_PER_KM_PETROL_CAR = 0.192;
+    public static final double CO2_PER_KM_DIESEL_CAR = 0.171;
+    public static final double CO2_PER_KM_CNG_CAR = 0.140;
+    public static final double CO2_PER_KM_EV_CAR = 0.053;
+
+    public static final double CO2_PER_KM_PETROL_BIKE = 0.103;
+    public static final double CO2_PER_KM_E_BIKE = 0.025;
+
+    public static final double CO2_PER_KM_CNG_AUTORICKSHAW = 0.065;
+    public static final double CO2_PER_KM_EASYBIKE = 0.020;
+    public static final double CO2_PER_KM_RICKSHAW = 0.0;
+    public static final double CO2_PER_KM_LEGUNA = 0.050;
+
+    public static final double CO2_PER_KM_DIESEL_BUS = 0.089;
+    public static final double CO2_PER_KM_CNG_BUS = 0.075;
+    public static final double CO2_PER_KM_ELECTRIC_BUS = 0.030;
     public static final double CO2_PER_KM_TRAIN = 0.035;
 
+    // Meals Emission Base Factors (kg CO2 / meal)
     public static final double CO2_PER_MEAL_BEEF = 3.50;
     public static final double CO2_PER_MEAL_POULTRY = 1.20;
     public static final double CO2_PER_MEAL_VEGETARIAN = 0.60;
     public static final double CO2_PER_MEAL_VEGAN = 0.40;
 
-    // Expanded default appliance wattage dictionary
+    // Meal Overheads & Add-ons (kg CO2)
+    public static final double CO2_TAKEOUT_PACKAGING = 0.35;
+    public static final double CO2_DAIRY_BEVERAGE = 0.40;
+    public static final double CO2_SOFT_DRINK = 0.18;
+
+    // Cooking Fuel Emission Factors (kg CO2 / hour of single-burner use)
+    public static final double CO2_PER_HOUR_LPG = 0.54;
+    public static final double CO2_PER_HOUR_NATURAL_GAS = 0.34;
+    public static final double CO2_PER_HOUR_FIREWOOD = 1.46;
+    public static final double CO2_PER_HOUR_BIOMASS = 1.00;
+    public static final double CO2_PER_HOUR_KEROSENE = 0.51;
+
+    // Default appliance wattage dictionary
     public static final Map<String, Integer> DEFAULT_APPLIANCE_WATTS = new HashMap<String, Integer>() {{
         put("Air Conditioner (AC)", 1500);
         put("Air Fryer", 1500);
@@ -51,11 +76,8 @@ public class CarbonCalculator {
         return list;
     }
 
-    /**
-     * Calculates CO2 incorporating green energy ratio and active hours.
-     */
-    public static double calculateElectricityCo2(double watts, double hours, double greenEnergyPercent) {
-        double cleanRatio = Math.min(100.0, Math.max(0.0, greenEnergyPercent)) / 100.0;
+    public static double calculateElectricityCo2(double watts, double hours, double greenElectricityPercent) {
+        double cleanRatio = Math.min(100.0, Math.max(0.0, greenElectricityPercent)) / 100.0;
         double effectiveEmissionFactor = DEFAULT_GRID_CO2_PER_KWH * (1.0 - cleanRatio);
         double kWh = (watts * hours) / 1000.0;
         return kWh * effectiveEmissionFactor;
@@ -64,44 +86,150 @@ public class CarbonCalculator {
     public static double calculateTransportCo2(String transportMode, double distanceKm) {
         if (transportMode == null) return 0.0;
 
+        double factor;
         switch (transportMode) {
+            case "Petrol Car":
             case "Car":
             case "Gas Car":
-                return distanceKm * CO2_PER_KM_CAR;
+                factor = CO2_PER_KM_PETROL_CAR;
+                break;
+            case "Diesel Car":
+                factor = CO2_PER_KM_DIESEL_CAR;
+                break;
+            case "CNG Car":
+                factor = CO2_PER_KM_CNG_CAR;
+                break;
+            case "Electric Car (EV)":
             case "Electric Vehicle (EV)":
             case "EV":
-                return distanceKm * CO2_PER_KM_EV;
-            case "Bus":
-                return distanceKm * CO2_PER_KM_BUS;
+                factor = CO2_PER_KM_EV_CAR;
+                break;
+            case "Petrol Motorbike":
             case "Motorbike":
-                return distanceKm * CO2_PER_KM_BIKE;
+                factor = CO2_PER_KM_PETROL_BIKE;
+                break;
+            case "Electric Scooter / Bike":
+                factor = CO2_PER_KM_E_BIKE;
+                break;
+            case "CNG Auto-Rickshaw (3-Wheeler)":
+                factor = CO2_PER_KM_CNG_AUTORICKSHAW;
+                break;
+            case "Electric Easybike / Auto-Rickshaw":
+                factor = CO2_PER_KM_EASYBIKE;
+                break;
+            case "Leguna / Human Hauler":
+                factor = CO2_PER_KM_LEGUNA;
+                break;
+            case "Diesel Bus":
+            case "Bus":
+                factor = CO2_PER_KM_DIESEL_BUS;
+                break;
+            case "CNG Bus":
+                factor = CO2_PER_KM_CNG_BUS;
+                break;
+            case "Electric Bus":
+                factor = CO2_PER_KM_ELECTRIC_BUS;
+                break;
+            case "Train / Metro Rail":
             case "Train":
-                return distanceKm * CO2_PER_KM_TRAIN;
+                factor = CO2_PER_KM_TRAIN;
+                break;
+            case "Manual Cycle Rickshaw":
             case "Bicycle / Walking":
             default:
-                return 0.0;
+                factor = CO2_PER_KM_RICKSHAW;
+                break;
         }
+        return distanceKm * factor;
     }
 
+    /**
+     * Backward-compatible meal calculation.
+     */
     public static double calculateMealCo2(String mealType, int mealCount) {
-        if (mealType == null) return 0.0;
+        return calculateMealCo2(mealType, "Standard (1.0x)", "Finished / Clean Plate", false, false, false, mealCount);
+    }
 
-        double factor;
+    /**
+     * Dynamic meal calculation with portion sizing, waste multipliers, delivery packaging, and beverage add-ons.
+     */
+    public static double calculateMealCo2(String mealType, String portionSize, String wasteOption,
+                                          boolean isTakeout, boolean hasDairyBeverage, boolean hasSoftDrink, int mealCount) {
+        if (mealType == null || mealCount <= 0) return 0.0;
+
+        double baseFactor;
         switch (mealType) {
             case "High Meat (Beef / Lamb)":
-                factor = CO2_PER_MEAL_BEEF;
+                baseFactor = CO2_PER_MEAL_BEEF;
                 break;
             case "Low Meat (Poultry / Fish)":
-                factor = CO2_PER_MEAL_POULTRY;
+                baseFactor = CO2_PER_MEAL_POULTRY;
                 break;
             case "Vegetarian":
-                factor = CO2_PER_MEAL_VEGETARIAN;
+                baseFactor = CO2_PER_MEAL_VEGETARIAN;
                 break;
             case "Vegan":
             default:
-                factor = CO2_PER_MEAL_VEGAN;
+                baseFactor = CO2_PER_MEAL_VEGAN;
                 break;
         }
-        return factor * mealCount;
+
+        // Portion Sizing Multipliers
+        double portionMultiplier = 1.0;
+        if (portionSize != null) {
+            if (portionSize.contains("Snack") || portionSize.contains("0.6x")) {
+                portionMultiplier = 0.6;
+            } else if (portionSize.contains("Large") || portionSize.contains("1.4x")) {
+                portionMultiplier = 1.4;
+            } else if (portionSize.contains("Feast") || portionSize.contains("1.8x")) {
+                portionMultiplier = 1.8;
+            }
+        }
+
+        // Food Waste & Leftover Modifiers
+        double wasteMultiplier = 1.0;
+        if (wasteOption != null) {
+            if (wasteOption.contains("Saved Leftovers") || wasteOption.contains("-15%")) {
+                wasteMultiplier = 0.85; // 15% bonus for zero waste & saving leftovers
+            } else if (wasteOption.contains("Wasted") || wasteOption.contains("+30%")) {
+                wasteMultiplier = 1.30; // 30% penalty for landfill food waste methane emissions
+            }
+        }
+
+        double singleMealCo2 = baseFactor * portionMultiplier * wasteMultiplier;
+
+        // Add packaging and beverage overheads
+        if (isTakeout) singleMealCo2 += CO2_TAKEOUT_PACKAGING;
+        if (hasDairyBeverage) singleMealCo2 += CO2_DAIRY_BEVERAGE;
+        if (hasSoftDrink) singleMealCo2 += CO2_SOFT_DRINK;
+
+        return singleMealCo2 * mealCount;
+    }
+
+    public static double calculateCookingCo2(String fuelType, double hours) {
+        if (fuelType == null || hours <= 0) return 0.0;
+
+        double factor;
+        switch (fuelType) {
+            case "LPG (Cylinder Gas)":
+                factor = CO2_PER_HOUR_LPG;
+                break;
+            case "Piped Natural Gas":
+                factor = CO2_PER_HOUR_NATURAL_GAS;
+                break;
+            case "Firewood (Wood Stove)":
+                factor = CO2_PER_HOUR_FIREWOOD;
+                break;
+            case "Dry Twigs & Crop Biomass":
+                factor = CO2_PER_HOUR_BIOMASS;
+                break;
+            case "Kerosene Stove":
+                factor = CO2_PER_HOUR_KEROSENE;
+                break;
+            default:
+                factor = CO2_PER_HOUR_LPG;
+                break;
+        }
+        return hours * factor;
     }
 }

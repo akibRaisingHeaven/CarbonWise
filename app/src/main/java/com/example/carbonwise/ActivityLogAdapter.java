@@ -37,24 +37,39 @@ public class ActivityLogAdapter extends RecyclerView.Adapter<ActivityLogAdapter.
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         ActivityLog log = logList.get(position);
         holder.tvTitle.setText(log.getTitle());
-        holder.tvSubtitle.setText(log.getCategory() + " • " + log.getDate());
+        String categoryLabel = "Energy".equalsIgnoreCase(log.getCategory()) ? "Electricity" : log.getCategory();
+        holder.tvSubtitle.setText(categoryLabel + " • " + log.getDate());
         holder.tvCo2.setText(String.format(Locale.getDefault(), "%.1f kg CO₂", log.getCo2Emitted()));
 
-        // Tap item card to trigger Edit / Delete menu
+        // Tap item card to trigger popup action menu
         holder.itemView.setOnClickListener(v -> {
+            boolean isBaseload = isBaseloadLog(log);
             PopupMenu popup = new PopupMenu(v.getContext(), v);
-            popup.getMenu().add("Edit");
-            popup.getMenu().add("Delete");
+
+            if (isBaseload) {
+                // Baseload is immutable; only outage reporting is allowed
+                popup.getMenu().add("Report Outage");
+            } else {
+                popup.getMenu().add("Edit");
+                popup.getMenu().add("Delete");
+            }
+
             popup.setOnMenuItemClickListener(item -> {
-                if ("Edit".equals(item.getTitle())) {
+                String title = item.getTitle().toString();
+                if ("Report Outage".equals(title) || "Edit".equals(title)) {
                     listener.onEdit(log);
-                } else if ("Delete".equals(item.getTitle())) {
+                } else if ("Delete".equals(title)) {
                     listener.onDelete(log);
                 }
                 return true;
             });
             popup.show();
         });
+    }
+
+    private boolean isBaseloadLog(ActivityLog log) {
+        return (log.getId() != null && log.getId().startsWith("baseline_")) ||
+                (log.getTitle() != null && log.getTitle().contains("Baseload"));
     }
 
     @Override

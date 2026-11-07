@@ -1,5 +1,7 @@
 package com.example.carbonwise;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -23,8 +25,33 @@ public class MapApiClient {
         void onError(String errorMessage);
     }
 
+    private static final String PREF_NAME = "map_api_prefs";
+    private static final String KEY_LAT = "last_lat";
+    private static final String KEY_LON = "last_lon";
+
+    // Default regional coordinates fallback (Khulna, BD)
+    public static final double DEFAULT_LAT = 22.8456;
+    public static final double DEFAULT_LON = 89.5403;
+
     private static final ExecutorService executor = Executors.newSingleThreadExecutor();
     private static final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+    public static void saveLastKnownCoordinates(Context context, double lat, double lon) {
+        if (context == null) return;
+        context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putFloat(KEY_LAT, (float) lat)
+                .putFloat(KEY_LON, (float) lon)
+                .apply();
+    }
+
+    public static double[] getLastKnownCoordinates(Context context) {
+        if (context == null) return new double[]{DEFAULT_LAT, DEFAULT_LON};
+        SharedPreferences prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+        float lat = prefs.getFloat(KEY_LAT, (float) DEFAULT_LAT);
+        float lon = prefs.getFloat(KEY_LON, (float) DEFAULT_LON);
+        return new double[]{(double) lat, (double) lon};
+    }
 
     public static void fetchDistance(String origin, String destination, DistanceCallback callback) {
         executor.execute(() -> {

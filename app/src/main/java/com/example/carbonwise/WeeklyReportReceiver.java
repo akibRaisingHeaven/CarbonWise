@@ -68,19 +68,22 @@ public class WeeklyReportReceiver extends BroadcastReceiver {
             }
         }
 
-        Intent openAnalyticsIntent = new Intent(context, AnalyticsActivity.class);
-        openAnalyticsIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        Intent openReportsIntent = new Intent(context, ReportsActivity.class);
+        openReportsIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        openReportsIntent.putExtra("AUTO_GENERATE", true);
+        openReportsIntent.putExtra("REPORT_TYPE", "7_DAYS");
+
         PendingIntent pendingIntent = PendingIntent.getActivity(
                 context,
                 0,
-                openAnalyticsIntent,
+                openReportsIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_menu_agenda)
                 .setContentTitle("📊 Weekly Carbon Report")
-                .setContentText(String.format(Locale.getDefault(), "Past 7 days total: %.1f kg CO₂. Tap to view details!", weeklyCo2))
+                .setContentText(String.format(Locale.getDefault(), "Past 7 days total: %.1f kg CO₂. Tap to generate & view report!", weeklyCo2))
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .setContentIntent(pendingIntent)
                 .setAutoCancel(true);

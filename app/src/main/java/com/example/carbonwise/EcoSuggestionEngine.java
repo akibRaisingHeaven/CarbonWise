@@ -4,29 +4,24 @@ import java.util.Locale;
 
 public class EcoSuggestionEngine {
 
-    /**
-     * Generates a dynamic, quantitative eco-suggestion using all activity parameters.
-     *
-     * @param category          "Energy", "Transport", or "Meals"
-     * @param title             Specific item (e.g., "Air Conditioner (AC)", "Car Travel", "High Meat Meal")
-     * @param hoursOrKmOrCount Quantity metric (Hours active, KM traveled, or meal count)
-     * @param co2               Calculated CO2 emitted in kg for this specific log
-     * @return Dynamic tip with quantified savings potential
-     */
     public static String getSuggestion(String category, String title, double hoursOrKmOrCount, double co2) {
         if (co2 <= 0) {
             return "🌱 Zero-Emission Activity! Excellent job keeping your carbon footprint clean.";
         }
 
         switch (category.toUpperCase()) {
+            case "ELECTRICITY":
             case "ENERGY":
-                return getEnergySuggestion(title, hoursOrKmOrCount, co2);
+                return getElectricitySuggestion(title, hoursOrKmOrCount, co2);
 
             case "TRANSPORT":
                 return getTransportSuggestion(title, hoursOrKmOrCount, co2);
 
             case "MEALS":
                 return getMealsSuggestion(title, hoursOrKmOrCount, co2);
+
+            case "COOKING":
+                return getCookingSuggestion(title, hoursOrKmOrCount, co2);
 
             default:
                 double defaultPotentialSavings = co2 * 0.20;
@@ -35,9 +30,9 @@ public class EcoSuggestionEngine {
         }
     }
 
-    private static String getEnergySuggestion(String title, double hours, double co2) {
+    private static String getElectricitySuggestion(String title, double hours, double co2) {
         if (title.contains("AC") || title.contains("Air Conditioner")) {
-            double savings = co2 * 0.15; // ~15% energy reduction by setting temp 1-2°C higher
+            double savings = co2 * 0.15;
             if (hours >= 8) {
                 return String.format(Locale.getDefault(),
                         "💡 High AC Usage: Running for %.1fh logged %.2f kg CO₂. Setting a 6h off-timer or raising temp 2°C saves ~%.2f kg CO₂ daily!",
@@ -56,14 +51,14 @@ public class EcoSuggestionEngine {
         }
 
         if (title.contains("Router") || title.contains("Refrigerator") || title.contains("Always On")) {
-            double nightSavings = (co2 / Math.max(1.0, hours)) * 8.0; // 8 hours of nighttime standby savings
+            double nightSavings = (co2 / Math.max(1.0, hours)) * 8.0;
             return String.format(Locale.getDefault(),
                     "🔌 Standby Power: Drew %.2f kg CO₂ over %.1fh. Smart-plug night schedules save ~%.2f kg CO₂ daily.",
                     co2, hours, nightSavings);
         }
 
         if (title.contains("Washing Machine")) {
-            double coldWaterSavings = co2 * 0.75; // Cold water saves ~75% of cycle energy
+            double coldWaterSavings = co2 * 0.75;
             return String.format(Locale.getDefault(),
                     "🧺 Laundry Tip: Switching to a cold-water wash for this load saves ~%.2f kg CO₂!",
                     coldWaterSavings);
@@ -71,26 +66,53 @@ public class EcoSuggestionEngine {
 
         double standardSavings = co2 * 0.25;
         return String.format(Locale.getDefault(),
-                "💡 Energy Tip: Powering off idle electronics during this %.1fh stretch saves ~%.2f kg CO₂.",
+                "💡 Electricity Tip: Powering off idle electronics during this %.1fh stretch saves ~%.2f kg CO₂.",
                 hours, standardSavings);
     }
 
     private static String getTransportSuggestion(String title, double km, double co2) {
+        if (title.contains("Rickshaw") || title.contains("Bicycle") || title.contains("Walking")) {
+            return String.format(Locale.getDefault(),
+                    "🌱 Zero Emissions! Traveling %.1f km via non-motorized transport saved ~%.2f kg CO₂ compared to driving.",
+                    km, km * CarbonCalculator.CO2_PER_KM_PETROL_CAR);
+        }
+
+        if (title.contains("EV") || title.contains("Electric") || title.contains("Easybike")) {
+            double savingsVsPetrol = km * (CarbonCalculator.CO2_PER_KM_PETROL_CAR - CarbonCalculator.calculateTransportCo2(title, 1.0));
+            return String.format(Locale.getDefault(),
+                    "⚡ Clean Mobility: Driving %.1f km with electric transport emitted only %.2f kg CO₂ (saved ~%.2f kg CO₂ vs petrol car)!",
+                    km, co2, Math.max(0, savingsVsPetrol));
+        }
+
         if (title.contains("Car")) {
             if (km <= 5.0) {
                 return String.format(Locale.getDefault(),
-                        "🚲 Short Drive Alert: Driving %.1f km emitted %.2f kg CO₂. Cycling or walking saves the full %.2f kg CO₂!",
+                        "🚲 Short Drive Alert: Driving %.1f km emitted %.2f kg CO₂. Cycling, walking, or taking a rickshaw saves up to %.2f kg CO₂!",
                         km, co2, co2);
             }
-            double transitSavings = km * (CarbonCalculator.CO2_PER_KM_CAR - CarbonCalculator.CO2_PER_KM_BUS);
-            double percentSaved = (transitSavings / co2) * 100;
+            double modeFactor = CarbonCalculator.calculateTransportCo2(title, 1.0);
+            double transitSavings = km * Math.max(0.0, modeFactor - CarbonCalculator.CO2_PER_KM_DIESEL_BUS);
+            double percentSaved = (co2 > 0) ? (transitSavings / co2) * 100 : 0;
             return String.format(Locale.getDefault(),
                     "🚌 Commute Tip: Your %.1f km drive logged %.2f kg CO₂. Switching to public transit saves ~%.2f kg CO₂ (%.0f%% reduction)!",
                     km, co2, transitSavings, percentSaved);
         }
 
-        if (title.contains("Bus") || title.contains("Train")) {
-            double savedVsCar = km * (CarbonCalculator.CO2_PER_KM_CAR - CarbonCalculator.CO2_PER_KM_BUS);
+        if (title.contains("Auto-Rickshaw") || title.contains("Leguna")) {
+            if (km <= 3.0) {
+                return String.format(Locale.getDefault(),
+                        "🛺 Short Trip Tip: Taking a 3-wheeler for %.1f km emitted %.2f kg CO₂. Walking or manual rickshaw saves %.2f kg CO₂!",
+                        km, co2, co2);
+            }
+            double ebikeSavings = km * Math.max(0.0, CarbonCalculator.CO2_PER_KM_CNG_AUTORICKSHAW - CarbonCalculator.CO2_PER_KM_EASYBIKE);
+            return String.format(Locale.getDefault(),
+                    "⚡ Local Transit Tip: Taking an electric Easybike instead of CNG auto for %.1f km cuts ~%.2f kg CO₂.",
+                    km, ebikeSavings);
+        }
+
+        if (title.contains("Bus") || title.contains("Train") || title.contains("Metro")) {
+            double modeFactor = CarbonCalculator.calculateTransportCo2(title, 1.0);
+            double savedVsCar = km * Math.max(0.0, CarbonCalculator.CO2_PER_KM_PETROL_CAR - modeFactor);
             return String.format(Locale.getDefault(),
                     "🌱 Great Choice! Taking public transit for %.1f km saved ~%.2f kg CO₂ compared to driving solo.",
                     km, savedVsCar);
@@ -103,9 +125,10 @@ public class EcoSuggestionEngine {
                     km, bikeSavings);
         }
 
+        double savedVsPetrol = km * (CarbonCalculator.CO2_PER_KM_PETROL_CAR - CarbonCalculator.calculateTransportCo2(title, 1.0));
         return String.format(Locale.getDefault(),
-                "🌱 Clean Travel: Driving this %.1f km route would have added %.2f kg CO₂. Great decision!",
-                km, km * CarbonCalculator.CO2_PER_KM_CAR);
+                "🌱 Travel Choice: Traveling %.1f km logged %.2f kg CO₂. (Saved ~%.2f kg CO₂ compared to a petrol car).",
+                km, co2, Math.max(0.0, savedVsPetrol));
     }
 
     private static String getMealsSuggestion(String title, double count, double co2) {
@@ -128,5 +151,26 @@ public class EcoSuggestionEngine {
         return String.format(Locale.getDefault(),
                 "🥗 Eco Star! Plant-based choices saved ~%.2f kg CO₂ compared to standard red meat meals.",
                 savedVsRedMeat);
+    }
+
+    private static String getCookingSuggestion(String title, double hours, double co2) {
+        if (title.contains("Firewood") || title.contains("Twigs") || title.contains("Biomass")) {
+            double icsSavings = co2 * 0.40;
+            return String.format(Locale.getDefault(),
+                    "🪵 Biomass Cooking: Burning wood/twigs for %.1fh logged %.2f kg CO₂. Using an Improved Cookstove (Bondhu Chula) or pressure cooker saves ~%.2f kg CO₂!",
+                    hours, co2, icsSavings);
+        }
+
+        if (title.contains("LPG") || title.contains("Natural Gas")) {
+            double pressureCookerSavings = co2 * 0.30;
+            return String.format(Locale.getDefault(),
+                    "🔥 Gas Cooking Tip: Using a pressure cooker or covering pots with lids during this %.1fh cook time saves ~%.2f kg CO₂.",
+                    hours, pressureCookerSavings);
+        }
+
+        double standardSavings = co2 * 0.20;
+        return String.format(Locale.getDefault(),
+                "🍳 Cooking Tip: Soaking pulses before cooking cuts stove run-time, saving ~%.2f kg CO₂.",
+                standardSavings);
     }
 }

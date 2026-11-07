@@ -4,11 +4,27 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- OpenStreetMap View -->
-    <org.osmdroid.views.MapView
-        android:id="@+id/mapView"
+    <!-- Map area sits above the bottom card, so the center pin is the exact center of the visible map -->
+    <FrameLayout
+        android:id="@+id/mapContainer"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        android:layout_above="@+id/layoutBottomCard">
+
+        <org.maplibre.android.maps.MapView
+            android:id="@+id/mapView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <!-- Pin: the tip of the pin marks the exact center of the map -->
+        <ImageView
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center"
+            android:contentDescription="Target Location"
+            android:src="@drawable/ic_map_pin"
+            android:translationY="-20dp" />
+    </FrameLayout>
 
     <!-- Top Search Bar Overlay with Back Button -->
     <LinearLayout
@@ -54,20 +70,12 @@
             android:text="Search" />
     </LinearLayout>
 
-    <!-- Center Target Marker Pin -->
-    <ImageView
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_centerInParent="true"
-        android:contentDescription="Target Location"
-        android:src="@android:drawable/ic_menu_myplaces" />
-
     <!-- My Location FAB -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabMyLocation"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_above="@id/layoutBottomCard"
+        android:layout_above="@+id/layoutBottomCard"
         android:layout_alignParentEnd="true"
         android:layout_margin="16dp"
         android:contentDescription="My Location"
@@ -90,10 +98,18 @@
             android:id="@+id/tvSelectedLocation"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Pan map to position center pin..."
+            android:text="Move the map to place the pin..."
             android:textColor="#0F172A"
             android:textSize="14sp"
             android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvSelectedCoords"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textColor="#64748B"
+            android:textSize="12sp" />
 
         <Button
             android:id="@+id/btnConfirmLocation"

@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.google.gms.google.services)
@@ -17,6 +19,11 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Secrets come from local.properties (git-ignored), never from source code
+        val localProps = Properties()
+        rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { localProps.load(it) }
+        buildConfigField("String", "ELECTRICITY_MAPS_TOKEN", "\"${localProps.getProperty("electricitymaps.token", "")}\"")
     }
 
     buildTypes {
@@ -35,6 +42,7 @@ android {
     // Enable View Binding for cleaner UI interaction
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 }
 
@@ -48,7 +56,8 @@ dependencies {
     // Google Sign-In Legacy/Standard API
     implementation("com.google.android.gms:play-services-auth:21.2.0")
 
-    implementation("org.osmdroid:osmdroid-android:6.1.18")
+    // Map: MapLibre with free OpenFreeMap vector tiles (no API key or billing needed)
+    implementation("org.maplibre.gl:android-sdk:11.8.2")
 
     implementation(libs.firebase.auth)
     implementation(libs.googleid)
