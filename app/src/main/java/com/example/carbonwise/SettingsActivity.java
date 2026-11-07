@@ -4,6 +4,7 @@ import android.app.TimePickerDialog;
 import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
@@ -32,7 +33,7 @@ public class SettingsActivity extends AppCompatActivity {
 
     private EditText etGreenPercent;
 
-    private CheckBox cbEnableDailyReminder, cbEnableWeeklyReport, cbEnableMonthlyReport;
+    private CheckBox cbEnableLiveTracker, cbEnableDailyReminder, cbEnableWeeklyReport, cbEnableMonthlyReport;
     private Spinner spWeeklyDay, spMonthlyDay;
     private Button btnDailyReminderTime, btnWeeklyReportTime, btnMonthlyReportTime;
 
@@ -62,6 +63,7 @@ public class SettingsActivity extends AppCompatActivity {
 
         etGreenPercent = findViewById(R.id.etGreenPercent);
 
+        cbEnableLiveTracker = findViewById(R.id.cbEnableLiveTracker);
         cbEnableDailyReminder = findViewById(R.id.cbEnableDailyReminder);
         cbEnableWeeklyReport = findViewById(R.id.cbEnableWeeklyReport);
         cbEnableMonthlyReport = findViewById(R.id.cbEnableMonthlyReport);
@@ -210,6 +212,8 @@ public class SettingsActivity extends AppCompatActivity {
                         if (settings != null) {
                             etGreenPercent.setText(String.valueOf(settings.getGreenEnergyPercent()));
 
+                            cbEnableLiveTracker.setChecked(settings.isLiveTrackerEnabled());
+
                             cbEnableDailyReminder.setChecked(settings.isReminderEnabled());
                             dailyHour = settings.getReminderHour();
                             dailyMinute = settings.getReminderMinute();
@@ -255,6 +259,7 @@ public class SettingsActivity extends AppCompatActivity {
             return;
         }
 
+        boolean liveTrackerOn = cbEnableLiveTracker.isChecked();
         int selectedWeeklyDay = spWeeklyDay.getSelectedItemPosition() + 1;
         int selectedMonthlyDay = spMonthlyDay.getSelectedItemPosition() + 1;
 
@@ -271,6 +276,7 @@ public class SettingsActivity extends AppCompatActivity {
 
         UserSettings settings = new UserSettings(
                 greenPercent,
+                liveTrackerOn,
                 cbEnableDailyReminder.isChecked(), dailyHour, dailyMinute,
                 cbEnableWeeklyReport.isChecked(), selectedWeeklyDay, weeklyHour, weeklyMinute,
                 cbEnableMonthlyReport.isChecked(), selectedMonthlyDay, monthlyHour, monthlyMinute,
@@ -281,7 +287,19 @@ public class SettingsActivity extends AppCompatActivity {
                 .set(settings)
                 .addOnSuccessListener(aVoid -> {
                     ReminderScheduler.scheduleAllReminders(SettingsActivity.this, settings);
-                    Toast.makeText(SettingsActivity.this, "Settings & Schedules Saved!", Toast.LENGTH_SHORT).show();
+
+                    Intent serviceIntent = new Intent(SettingsActivity.this, CarbonGoalService.class);
+                    if (liveTrackerOn) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            startForegroundService(serviceIntent);
+                        } else {
+                            startService(serviceIntent);
+                        }
+                    } else {
+                        stopService(serviceIntent);
+                    }
+
+                    Toast.makeText(SettingsActivity.this, "Settings Saved!", Toast.LENGTH_SHORT).show();
                     startActivity(new Intent(SettingsActivity.this, DashboardActivity.class));
                     finish();
                 })

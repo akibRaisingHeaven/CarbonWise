@@ -3,16 +3,21 @@ package com.example.carbonwise;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.IBinder;
+
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -20,7 +25,13 @@ import java.util.Locale;
 
 public class CarbonGoalService extends Service {
 
-    private static final String CHANNEL_ID = "CarbonGoalServiceChannel";
+    private static final String CHANNEL_ID = "carbon_baseline_channel";
+    private static final int NOTIFICATION_ID = 1;
+
+    private FirebaseFirestore db;
+    private ListenerRegistration logListener;
+    private String userId;
+    private String currentNotificationText = "Monitoring baseline emissions & eco-goals...";
 
     @Override
     public void onCreate() {
@@ -30,97 +41,101 @@ public class CarbonGoalService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("CarbonWise Active")
-                .setContentText("Monitoring baseline emissions & eco-goals...")
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
-                .build();
+        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+        if (user != null) {
+            userId = user.getUid();
+            db = FirebaseFirestore.getInstance();
+            if (logListener == null) {
+                startLiveEmissionsListener();
+            }
+        }
 
-        startForeground(1, notification);
-        autoLogAlwaysOnBaseline();
-
+        startForeground(NOTIFICATION_ID, buildNotification(currentNotificationText));
         return START_STICKY;
     }
 
-    private void autoLogAlwaysOnBaseline() {
-        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
-        if (user == null) return;
+    private void startLiveEmissionsListener() {
+        if (userId == null || db == null) return;
 
-        String userId = user.getUid();
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
+        String todayStr = new SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(new Date());
 
-        String todayDate = new SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(new Date());
-        String baselineDocId = "baseline_" + new SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(new Date());
+        logListener = db.collection("users").document(userId).collection("activity_logs")
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null || snapshots == null) return;
 
-        db.collection("users").document(userId).collection("config").document("settings")
-                .get()
-                .addOnSuccessListener(configDoc -> {
-                    double greenPercent = 0.0;
-                    int totalAlwaysOnWatts = 0;
-
-                    if (configDoc.exists()) {
-                        UserSettings settings = configDoc.toObject(UserSettings.class);
-                        if (settings != null) {
-                            greenPercent = settings.getGreenEnergyPercent();
-                            if (settings.getAppliances() != null) {
-                                for (ApplianceConfig app : settings.getAppliances().values()) {
-                                    if (app.isOwned() && app.isAlwaysOn()) {
-                                        totalAlwaysOnWatts += app.getWattage();
-                                    }
-                                }
-                            }
+                    double todayTotal = 0.0;
+                    for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                        ActivityLog log = doc.toObject(ActivityLog.class);
+                        if (log != null && todayStr.equals(log.getDate())) {
+                            todayTotal += log.getCo2Emitted();
                         }
                     }
 
-                    if (totalAlwaysOnWatts == 0) {
-                        totalAlwaysOnWatts = 160;
+                    // Cache live metrics in SharedPreferences for CarbonContentProvider
+                    SharedPreferences prefs = getSharedPreferences("carbon_cache_prefs", MODE_PRIVATE);
+                    prefs.edit()
+                            .putFloat("today_co2", (float) todayTotal)
+                            .putFloat("daily_goal", (float) CarbonCalculator.DAILY_CARBON_BUDGET_KG)
+                            .apply();
+
+                    // Notify ContentProvider observers of URI data updates
+                    getContentResolver().notifyChange(CarbonContentProvider.CONTENT_URI, null);
+
+                    int percentage = (int) Math.min(100, (todayTotal / CarbonCalculator.DAILY_CARBON_BUDGET_KG) * 100);
+                    currentNotificationText = String.format(Locale.getDefault(), "Today: %.1f / 15.0 kg CO₂ (%d%% used)", todayTotal, percentage);
+
+                    NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+                    if (manager != null) {
+                        manager.notify(NOTIFICATION_ID, buildNotification(currentNotificationText));
                     }
-
-                    double baselineCo2 = CarbonCalculator.calculateElectricityCo2(totalAlwaysOnWatts, 24.0, greenPercent);
-                    long timestamp = System.currentTimeMillis();
-
-                    final double finalCo2 = baselineCo2;
-                    db.collection("users").document(userId)
-                            .collection("activity_logs")
-                            .document(baselineDocId)
-                            .get()
-                            .addOnSuccessListener(doc -> {
-                                if (!doc.exists()) {
-                                    ActivityLog baselineLog = new ActivityLog(
-                                            baselineDocId,
-                                            "Energy",
-                                            "Baseload (Always-On Devices)",
-                                            finalCo2,
-                                            todayDate,
-                                            timestamp
-                                    );
-
-                                    db.collection("users").document(userId)
-                                            .collection("activity_logs")
-                                            .document(baselineDocId)
-                                            .set(baselineLog);
-                                }
-                            });
                 });
     }
 
-    @Nullable
-    @Override
-    public IBinder onBind(Intent intent) {
-        return null;
+    private Notification buildNotification(String text) {
+        Intent intent = new Intent(this, DashboardActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent pendingIntent = PendingIntent.getActivity(
+                this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        return new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("🌿 CarbonWise Live Tracker")
+                .setContentText(text)
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setContentIntent(pendingIntent)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .build();
     }
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
                     CHANNEL_ID,
-                    "Carbon Goal Monitoring Channel",
+                    "Baseload & Live Tracker Service",
                     NotificationManager.IMPORTANCE_LOW
             );
+            channel.setDescription("Displays real-time carbon emissions progress and maintains baseline calculations.");
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
                 manager.createNotificationChannel(channel);
             }
         }
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        if (logListener != null) {
+            logListener.remove();
+            logListener = null;
+        }
+    }
+
+    @Nullable
+    @Override
+    public IBinder onBind(Intent intent) {
+        return null;
     }
 }

@@ -7,6 +7,9 @@ import java.util.Map;
 public class UserSettings {
     private double greenEnergyPercent;
 
+    // Persistent Live Service Notification
+    private boolean liveTrackerEnabled;
+
     // Daily Reminder
     private boolean reminderEnabled;
     private int reminderHour;
@@ -14,13 +17,13 @@ public class UserSettings {
 
     // Weekly Report
     private boolean weeklyReminderEnabled;
-    private int weeklyReminderDay; // 1 = Sunday, 2 = Monday, ... 7 = Saturday
+    private int weeklyReminderDay;
     private int weeklyReminderHour;
     private int weeklyReminderMinute;
 
     // Monthly Report
     private boolean monthlyReminderEnabled;
-    private int monthlyReminderDay; // 1 to 28
+    private int monthlyReminderDay;
     private int monthlyReminderHour;
     private int monthlyReminderMinute;
 
@@ -28,29 +31,32 @@ public class UserSettings {
 
     public UserSettings() {
         this.greenEnergyPercent = 0.0;
+        this.liveTrackerEnabled = true; // Default ON
 
         this.reminderEnabled = true;
-        this.reminderHour = 20; // 8:00 PM
+        this.reminderHour = 20;
         this.reminderMinute = 0;
 
         this.weeklyReminderEnabled = true;
-        this.weeklyReminderDay = Calendar.SUNDAY; // Default Sunday
+        this.weeklyReminderDay = Calendar.SUNDAY;
         this.weeklyReminderHour = 20;
         this.weeklyReminderMinute = 0;
 
         this.monthlyReminderEnabled = true;
-        this.monthlyReminderDay = 1; // Default 1st of month
+        this.monthlyReminderDay = 1;
         this.monthlyReminderHour = 20;
         this.monthlyReminderMinute = 0;
 
         this.appliances = new HashMap<>();
     }
 
-    public UserSettings(double greenEnergyPercent, boolean reminderEnabled, int reminderHour, int reminderMinute,
+    public UserSettings(double greenEnergyPercent, boolean liveTrackerEnabled,
+                        boolean reminderEnabled, int reminderHour, int reminderMinute,
                         boolean weeklyReminderEnabled, int weeklyReminderDay, int weeklyReminderHour, int weeklyReminderMinute,
                         boolean monthlyReminderEnabled, int monthlyReminderDay, int monthlyReminderHour, int monthlyReminderMinute,
                         Map<String, ApplianceConfig> appliances) {
         this.greenEnergyPercent = greenEnergyPercent;
+        this.liveTrackerEnabled = liveTrackerEnabled;
         this.reminderEnabled = reminderEnabled;
         this.reminderHour = reminderHour;
         this.reminderMinute = reminderMinute;
@@ -67,6 +73,9 @@ public class UserSettings {
 
     public double getGreenEnergyPercent() { return greenEnergyPercent; }
     public void setGreenEnergyPercent(double greenEnergyPercent) { this.greenEnergyPercent = greenEnergyPercent; }
+
+    public boolean isLiveTrackerEnabled() { return liveTrackerEnabled; }
+    public void setLiveTrackerEnabled(boolean liveTrackerEnabled) { this.liveTrackerEnabled = liveTrackerEnabled; }
 
     public boolean isReminderEnabled() { return reminderEnabled; }
     public void setReminderEnabled(boolean reminderEnabled) { this.reminderEnabled = reminderEnabled; }

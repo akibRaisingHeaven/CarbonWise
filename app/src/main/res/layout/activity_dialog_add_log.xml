@@ -67,7 +67,7 @@
                 android:textColorHint="#94A3B8" />
         </LinearLayout>
 
-        <!-- Transport Form -->
+        <!-- Transport Form (Updated with Map Picker Buttons) -->
         <LinearLayout
             android:id="@+id/layoutTransport"
             android:layout_width="match_parent"
@@ -90,6 +90,106 @@
                 android:layout_height="48dp"
                 android:layout_marginTop="4dp" />
 
+            <!-- Starting Point Input + Map Button -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Starting Point (Origin)"
+                android:textColor="#0F172A"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <EditText
+                    android:id="@+id/etOrigin"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="e.g. Dhaka"
+                    android:inputType="textPostalAddress"
+                    android:minHeight="48dp"
+                    android:textColor="#0F172A"
+                    android:textColorHint="#94A3B8" />
+
+                <Button
+                    android:id="@+id/btnPickOriginMap"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:minHeight="48dp"
+                    android:text="🗺️ Map" />
+            </LinearLayout>
+
+            <!-- Destination Point Input + Map Button -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Destination Point"
+                android:textColor="#0F172A"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <EditText
+                    android:id="@+id/etDestination"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="e.g. Khulna"
+                    android:inputType="textPostalAddress"
+                    android:minHeight="48dp"
+                    android:textColor="#0F172A"
+                    android:textColorHint="#94A3B8" />
+
+                <Button
+                    android:id="@+id/btnPickDestMap"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:minHeight="48dp"
+                    android:text="🗺️ Map" />
+            </LinearLayout>
+
+            <!-- Auto-Calculate Button & Loader -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btnCalculateDistance"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
+                    android:text="Auto-Calculate Distance"
+                    android:textColor="#FFFFFF" />
+
+                <ProgressBar
+                    android:id="@+id/pbLoading"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_marginStart="12dp"
+                    android:visibility="gone" />
+            </LinearLayout>
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -109,6 +209,16 @@
                 android:minHeight="48dp"
                 android:textColor="#0F172A"
                 android:textColorHint="#94A3B8" />
+
+            <TextView
+                android:id="@+id/tvCalculatedCo2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="Estimated Emissions: 0.00 kg CO₂"
+                android:textColor="#0F172A"
+                android:textSize="14sp"
+                android:textStyle="bold" />
         </LinearLayout>
 
         <!-- Meals Form -->

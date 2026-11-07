@@ -87,7 +87,7 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Notification Schedules Card -->
+            <!-- Notification & Service Schedules Card -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -107,10 +107,23 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="🔔 Notification &amp; Report Schedules"
+                        android:text="🔔 Notification &amp; Service Schedules"
                         android:textColor="#0F172A"
                         android:textSize="16sp"
                         android:textStyle="bold"
+                        tools:ignore="HardcodedText" />
+
+                    <!-- Live Foreground Service Notification Toggle -->
+                    <CheckBox
+                        android:id="@+id/cbEnableLiveTracker"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:minHeight="48dp"
+                        android:checked="true"
+                        android:text="Persistent Status Bar Live Tracker"
+                        android:textColor="#0F172A"
+                        android:textSize="14sp"
                         tools:ignore="HardcodedText" />
 
                     <!-- Daily Check-in -->
@@ -118,7 +131,7 @@
                         android:id="@+id/cbEnableDailyReminder"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
+                        android:layout_marginTop="12dp"
                         android:minHeight="48dp"
                         android:checked="true"
                         android:text="Daily Logging Reminder"

@@ -5,8 +5,10 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.text.Editable;
 import android.text.InputType;
 import android.text.TextUtils;
+import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.AdapterView;
@@ -61,6 +63,18 @@ public class DashboardActivity extends AppCompatActivity {
     private double userGreenPercent = 0.0;
     private Map<String, ApplianceConfig> userAppliances = new HashMap<>();
 
+    private EditText pendingMapEditText = null;
+
+    private final androidx.activity.result.ActivityResultLauncher<Intent> mapPickerLauncher =
+            registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(), result -> {
+                if (result.getResultCode() == RESULT_OK && result.getData() != null && pendingMapEditText != null) {
+                    String locationName = result.getData().getStringExtra("location_name");
+                    if (locationName != null && !locationName.isEmpty()) {
+                        pendingMapEditText.setText(locationName);
+                    }
+                }
+            });
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -90,7 +104,8 @@ public class DashboardActivity extends AppCompatActivity {
 
         rvActivityLogs = findViewById(R.id.rvActivityLogs);
         rvActivityLogs.setLayoutManager(new LinearLayoutManager(this));
-        rvActivityLogs.setNestedScrollingEnabled(false); // Prevents list clipping inside NestedScrollView
+        rvActivityLogs.setNestedScrollingEnabled(false);
+
         btnLogActivity = findViewById(R.id.btnLogActivity);
         btnLogout = findViewById(R.id.btnLogout);
         btnSelectDate = findViewById(R.id.btnSelectDate);
@@ -104,7 +119,6 @@ public class DashboardActivity extends AppCompatActivity {
         tvSummaryTitle = findViewById(R.id.tvSummaryTitle);
         pbDailyBudget = findViewById(R.id.pbDailyBudget);
 
-        rvActivityLogs.setLayoutManager(new LinearLayoutManager(this));
         logList = new ArrayList<>();
         allFetchedLogs = new ArrayList<>();
 
@@ -138,13 +152,6 @@ public class DashboardActivity extends AppCompatActivity {
 
         btnSelectDate.setOnClickListener(v -> showDatePickerDialog());
 
-        Intent serviceIntent = new Intent(this, CarbonGoalService.class);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent);
-        } else {
-            startService(serviceIntent);
-        }
-
         checkAndLoadUserSettings();
         loadFirestoreLogs();
     }
@@ -162,7 +169,19 @@ public class DashboardActivity extends AppCompatActivity {
                             if (settings.getAppliances() != null) {
                                 userAppliances = settings.getAppliances();
                             }
+
                             ReminderScheduler.scheduleAllReminders(DashboardActivity.this, settings);
+
+                            Intent serviceIntent = new Intent(DashboardActivity.this, CarbonGoalService.class);
+                            if (settings.isLiveTrackerEnabled()) {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                    startForegroundService(serviceIntent);
+                                } else {
+                                    startService(serviceIntent);
+                                }
+                            } else {
+                                stopService(serviceIntent);
+                            }
                         }
                     }
                 });
@@ -245,6 +264,8 @@ public class DashboardActivity extends AppCompatActivity {
                 double factor = CarbonCalculator.CO2_PER_KM_CAR;
                 if (title.contains("Bus")) factor = CarbonCalculator.CO2_PER_KM_BUS;
                 else if (title.contains("Motorbike")) factor = CarbonCalculator.CO2_PER_KM_BIKE;
+                else if (title.contains("EV") || title.contains("Electric Vehicle")) factor = CarbonCalculator.CO2_PER_KM_EV;
+                else if (title.contains("Train")) factor = CarbonCalculator.CO2_PER_KM_TRAIN;
                 estimatedMetric = (factor > 0) ? (co2 / factor) : 0.0;
             } else if ("Meals".equalsIgnoreCase(category)) {
                 double factor = CarbonCalculator.CO2_PER_MEAL_BEEF;
@@ -367,8 +388,16 @@ public class DashboardActivity extends AppCompatActivity {
         Spinner spMealType = dialogView.findViewById(R.id.spMealType);
 
         EditText etHoursUsed = dialogView.findViewById(R.id.etHoursUsed);
+        EditText etOrigin = dialogView.findViewById(R.id.etOrigin);
+        EditText etDestination = dialogView.findViewById(R.id.etDestination);
         EditText etDistance = dialogView.findViewById(R.id.etDistance);
         EditText etMealCount = dialogView.findViewById(R.id.etMealCount);
+
+        Button btnPickOriginMap = dialogView.findViewById(R.id.btnPickOriginMap);
+        Button btnPickDestMap = dialogView.findViewById(R.id.btnPickDestMap);
+        Button btnCalculateDistance = dialogView.findViewById(R.id.btnCalculateDistance);
+        ProgressBar pbLoading = dialogView.findViewById(R.id.pbLoading);
+        TextView tvCalculatedCo2 = dialogView.findViewById(R.id.tvCalculatedCo2);
 
         LinearLayout layoutElectricity = dialogView.findViewById(R.id.layoutElectricity);
         LinearLayout layoutTransport = dialogView.findViewById(R.id.layoutTransport);
@@ -376,8 +405,47 @@ public class DashboardActivity extends AppCompatActivity {
 
         spCategory.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"Energy", "Transport", "Meals"}));
         spAppliance.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, getAvailableManualApplianceNames()));
-        spTransportMode.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"Car", "Bus", "Motorbike", "Bicycle / Walking"}));
+        spTransportMode.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"Car", "Electric Vehicle (EV)", "Bus", "Motorbike", "Train", "Bicycle / Walking"}));
         spMealType.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"High Meat (Beef / Lamb)", "Low Meat (Poultry / Fish)", "Vegetarian", "Vegan"}));
+
+        final int[] lastDurationMins = {0};
+
+        Runnable updateLiveTransportEmissions = () -> {
+            if (etDistance == null || spTransportMode == null || tvCalculatedCo2 == null) return;
+            String distStr = etDistance.getText().toString().trim();
+            if (distStr.isEmpty()) return;
+
+            try {
+                double dist = Double.parseDouble(distStr);
+                if (dist > 0) {
+                    String mode = spTransportMode.getSelectedItem().toString();
+                    double co2Emitted = CarbonCalculator.calculateTransportCo2(mode, dist);
+                    if (lastDurationMins[0] > 0) {
+                        tvCalculatedCo2.setText(String.format(Locale.getDefault(), "Distance: %.1f km (%d mins) • %.2f kg CO₂", dist, lastDurationMins[0], co2Emitted));
+                    } else {
+                        tvCalculatedCo2.setText(String.format(Locale.getDefault(), "Distance: %.1f km • %.2f kg CO₂", dist, co2Emitted));
+                    }
+                }
+            } catch (NumberFormatException ignored) {}
+        };
+
+        spTransportMode.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                updateLiveTransportEmissions.run();
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) {}
+        });
+
+        if (etDistance != null) {
+            etDistance.addTextChangedListener(new TextWatcher() {
+                @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                    updateLiveTransportEmissions.run();
+                }
+                @Override public void afterTextChanged(Editable s) {}
+            });
+        }
 
         spCategory.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
@@ -388,6 +456,54 @@ public class DashboardActivity extends AppCompatActivity {
             }
             @Override public void onNothingSelected(AdapterView<?> parent) {}
         });
+
+        if (btnPickOriginMap != null && etOrigin != null) {
+            btnPickOriginMap.setOnClickListener(v -> {
+                pendingMapEditText = etOrigin;
+                mapPickerLauncher.launch(new Intent(DashboardActivity.this, MapPickerActivity.class));
+            });
+        }
+
+        if (btnPickDestMap != null && etDestination != null) {
+            btnPickDestMap.setOnClickListener(v -> {
+                pendingMapEditText = etDestination;
+                mapPickerLauncher.launch(new Intent(DashboardActivity.this, MapPickerActivity.class));
+            });
+        }
+
+        if (btnCalculateDistance != null) {
+            btnCalculateDistance.setOnClickListener(v -> {
+                String origin = etOrigin != null ? etOrigin.getText().toString().trim() : "";
+                String destination = etDestination != null ? etDestination.getText().toString().trim() : "";
+
+                if (TextUtils.isEmpty(origin) || TextUtils.isEmpty(destination)) {
+                    Toast.makeText(this, "Please enter or pick origin and destination", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                if (pbLoading != null) pbLoading.setVisibility(View.VISIBLE);
+                btnCalculateDistance.setEnabled(false);
+
+                MapApiClient.fetchDistance(origin, destination, new MapApiClient.DistanceCallback() {
+                    @Override
+                    public void onSuccess(double distanceKm, int durationMinutes) {
+                        if (pbLoading != null) pbLoading.setVisibility(View.GONE);
+                        btnCalculateDistance.setEnabled(true);
+
+                        lastDurationMins[0] = durationMinutes;
+                        if (etDistance != null) etDistance.setText(String.format(Locale.getDefault(), "%.1f", distanceKm));
+                        updateLiveTransportEmissions.run();
+                    }
+
+                    @Override
+                    public void onError(String errorMessage) {
+                        if (pbLoading != null) pbLoading.setVisibility(View.GONE);
+                        btnCalculateDistance.setEnabled(true);
+                        Toast.makeText(DashboardActivity.this, errorMessage, Toast.LENGTH_SHORT).show();
+                    }
+                });
+            });
+        }
 
         builder.setView(dialogView)
                 .setPositiveButton("Calculate & Log", (dialog, which) -> {
@@ -468,8 +584,14 @@ public class DashboardActivity extends AppCompatActivity {
         Spinner spMealType = dialogView.findViewById(R.id.spMealType);
 
         EditText etHoursUsed = dialogView.findViewById(R.id.etHoursUsed);
+        EditText etOrigin = dialogView.findViewById(R.id.etOrigin);
+        EditText etDestination = dialogView.findViewById(R.id.etDestination);
         EditText etDistance = dialogView.findViewById(R.id.etDistance);
         EditText etMealCount = dialogView.findViewById(R.id.etMealCount);
+
+        Button btnCalculateDistance = dialogView.findViewById(R.id.btnCalculateDistance);
+        ProgressBar pbLoading = dialogView.findViewById(R.id.pbLoading);
+        TextView tvCalculatedCo2 = dialogView.findViewById(R.id.tvCalculatedCo2);
 
         LinearLayout layoutElectricity = dialogView.findViewById(R.id.layoutElectricity);
         LinearLayout layoutTransport = dialogView.findViewById(R.id.layoutTransport);
@@ -477,7 +599,7 @@ public class DashboardActivity extends AppCompatActivity {
 
         spCategory.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"Energy", "Transport", "Meals"}));
         spAppliance.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, getAvailableManualApplianceNames()));
-        spTransportMode.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"Car", "Bus", "Motorbike", "Bicycle / Walking"}));
+        spTransportMode.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"Car", "Electric Vehicle (EV)", "Bus", "Motorbike", "Train", "Bicycle / Walking"}));
         spMealType.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"High Meat (Beef / Lamb)", "Low Meat (Poultry / Fish)", "Vegetarian", "Vegan"}));
 
         int selectedIndex = 0;
@@ -489,6 +611,45 @@ public class DashboardActivity extends AppCompatActivity {
         layoutTransport.setVisibility(selectedIndex == 1 ? View.VISIBLE : View.GONE);
         layoutMeals.setVisibility(selectedIndex == 2 ? View.VISIBLE : View.GONE);
 
+        final int[] lastDurationMins = {0};
+
+        Runnable updateLiveTransportEmissions = () -> {
+            if (etDistance == null || spTransportMode == null || tvCalculatedCo2 == null) return;
+            String distStr = etDistance.getText().toString().trim();
+            if (distStr.isEmpty()) return;
+
+            try {
+                double dist = Double.parseDouble(distStr);
+                if (dist > 0) {
+                    String mode = spTransportMode.getSelectedItem().toString();
+                    double co2Emitted = CarbonCalculator.calculateTransportCo2(mode, dist);
+                    if (lastDurationMins[0] > 0) {
+                        tvCalculatedCo2.setText(String.format(Locale.getDefault(), "Distance: %.1f km (%d mins) • %.2f kg CO₂", dist, lastDurationMins[0], co2Emitted));
+                    } else {
+                        tvCalculatedCo2.setText(String.format(Locale.getDefault(), "Distance: %.1f km • %.2f kg CO₂", dist, co2Emitted));
+                    }
+                }
+            } catch (NumberFormatException ignored) {}
+        };
+
+        spTransportMode.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                updateLiveTransportEmissions.run();
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) {}
+        });
+
+        if (etDistance != null) {
+            etDistance.addTextChangedListener(new TextWatcher() {
+                @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                    updateLiveTransportEmissions.run();
+                }
+                @Override public void afterTextChanged(Editable s) {}
+            });
+        }
+
         spCategory.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -498,6 +659,40 @@ public class DashboardActivity extends AppCompatActivity {
             }
             @Override public void onNothingSelected(AdapterView<?> parent) {}
         });
+
+        if (btnCalculateDistance != null) {
+            btnCalculateDistance.setOnClickListener(v -> {
+                String origin = etOrigin != null ? etOrigin.getText().toString().trim() : "";
+                String destination = etDestination != null ? etDestination.getText().toString().trim() : "";
+
+                if (TextUtils.isEmpty(origin) || TextUtils.isEmpty(destination)) {
+                    Toast.makeText(this, "Please enter origin and destination", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                if (pbLoading != null) pbLoading.setVisibility(View.VISIBLE);
+                btnCalculateDistance.setEnabled(false);
+
+                MapApiClient.fetchDistance(origin, destination, new MapApiClient.DistanceCallback() {
+                    @Override
+                    public void onSuccess(double distanceKm, int durationMinutes) {
+                        if (pbLoading != null) pbLoading.setVisibility(View.GONE);
+                        btnCalculateDistance.setEnabled(true);
+
+                        lastDurationMins[0] = durationMinutes;
+                        if (etDistance != null) etDistance.setText(String.format(Locale.getDefault(), "%.1f", distanceKm));
+                        updateLiveTransportEmissions.run();
+                    }
+
+                    @Override
+                    public void onError(String errorMessage) {
+                        if (pbLoading != null) pbLoading.setVisibility(View.GONE);
+                        btnCalculateDistance.setEnabled(true);
+                        Toast.makeText(DashboardActivity.this, errorMessage, Toast.LENGTH_SHORT).show();
+                    }
+                });
+            });
+        }
 
         builder.setView(dialogView)
                 .setTitle("Edit Activity Log")

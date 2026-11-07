@@ -3,11 +3,14 @@
 
     <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
         android:allowBackup="true"
@@ -48,6 +51,11 @@
             android:exported="false"
             android:label="Emission Trend Analytics" />
 
+        <activity
+            android:name=".MapPickerActivity"
+            android:exported="false"
+            android:label="Select Location on Map" />
+
         <!-- Background Service -->
         <service
             android:name=".CarbonGoalService"
@@ -83,10 +91,11 @@
             android:exported="false" />
 
         <!-- Content Provider -->
+        <!-- Carbon ContentProvider -->
         <provider
             android:name=".CarbonContentProvider"
             android:authorities="com.example.carbonwise.provider"
-            android:exported="false" />
+            android:exported="true" />
 
     </application>
 

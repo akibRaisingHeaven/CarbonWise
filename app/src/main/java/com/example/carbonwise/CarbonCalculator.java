@@ -11,9 +11,12 @@ public class CarbonCalculator {
     public static final double DAILY_CARBON_BUDGET_KG = 15.0;
     public static final double DEFAULT_GRID_CO2_PER_KWH = 0.50; // Standard grid emission factor
 
+    // Transport emission factors (kg CO2 / km)
     public static final double CO2_PER_KM_CAR = 0.192;
+    public static final double CO2_PER_KM_EV = 0.053;
     public static final double CO2_PER_KM_BUS = 0.089;
     public static final double CO2_PER_KM_BIKE = 0.103;
+    public static final double CO2_PER_KM_TRAIN = 0.035;
 
     public static final double CO2_PER_MEAL_BEEF = 3.50;
     public static final double CO2_PER_MEAL_POULTRY = 1.20;
@@ -59,13 +62,21 @@ public class CarbonCalculator {
     }
 
     public static double calculateTransportCo2(String transportMode, double distanceKm) {
+        if (transportMode == null) return 0.0;
+
         switch (transportMode) {
             case "Car":
+            case "Gas Car":
                 return distanceKm * CO2_PER_KM_CAR;
+            case "Electric Vehicle (EV)":
+            case "EV":
+                return distanceKm * CO2_PER_KM_EV;
             case "Bus":
                 return distanceKm * CO2_PER_KM_BUS;
             case "Motorbike":
                 return distanceKm * CO2_PER_KM_BIKE;
+            case "Train":
+                return distanceKm * CO2_PER_KM_TRAIN;
             case "Bicycle / Walking":
             default:
                 return 0.0;
@@ -73,6 +84,8 @@ public class CarbonCalculator {
     }
 
     public static double calculateMealCo2(String mealType, int mealCount) {
+        if (mealType == null) return 0.0;
+
         double factor;
         switch (mealType) {
             case "High Meat (Beef / Lamb)":

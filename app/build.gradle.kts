@@ -48,6 +48,8 @@ dependencies {
     // Google Sign-In Legacy/Standard API
     implementation("com.google.android.gms:play-services-auth:21.2.0")
 
+    implementation("org.osmdroid:osmdroid-android:6.1.18")
+
     implementation(libs.firebase.auth)
     implementation(libs.googleid)
     implementation(libs.material)
