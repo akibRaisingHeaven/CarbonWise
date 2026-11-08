@@ -15,8 +15,11 @@ import java.util.concurrent.TimeUnit;
 
 public class ReminderScheduler {
 
+    private static final String CACHE_PREFS = "reminder_schedule_cache";
+
     public static void scheduleAllReminders(Context context, UserSettings settings) {
         if (settings == null) return;
+        saveToCache(context, settings);
         scheduleDailyReminder(context, settings);
         scheduleWeeklyReport(context, settings);
         scheduleMonthlyReport(context, settings);
@@ -65,7 +68,7 @@ public class ReminderScheduler {
         calendar.set(Calendar.MINUTE, settings.getReminderMinute());
         calendar.set(Calendar.SECOND, 0);
 
-        if (calendar.before(Calendar.getInstance())) {
+        if (calendar.getTimeInMillis() <= System.currentTimeMillis() + 1000) {
             calendar.add(Calendar.DAY_OF_YEAR, 1);
         }
 
@@ -93,7 +96,7 @@ public class ReminderScheduler {
         calendar.set(Calendar.MINUTE, settings.getWeeklyReminderMinute());
         calendar.set(Calendar.SECOND, 0);
 
-        if (calendar.before(Calendar.getInstance())) {
+        if (calendar.getTimeInMillis() <= System.currentTimeMillis() + 1000) {
             calendar.add(Calendar.WEEK_OF_YEAR, 1);
         }
 
@@ -121,13 +124,66 @@ public class ReminderScheduler {
         calendar.set(Calendar.MINUTE, settings.getMonthlyReminderMinute());
         calendar.set(Calendar.SECOND, 0);
 
-        if (calendar.before(Calendar.getInstance())) {
+        if (calendar.getTimeInMillis() <= System.currentTimeMillis() + 1000) {
             calendar.add(Calendar.MONTH, 1);
         }
 
         if (alarmManager != null) {
             setExactAlarm(alarmManager, calendar.getTimeInMillis(), pendingIntent);
         }
+    }
+
+    /**
+     * Alarms fire only once and are lost on reboot, so the schedule is kept in SharedPreferences.
+     * The receivers call rescheduleFromCache() after they fire to queue the next occurrence,
+     * and the boot receiver calls it after a restart. No network is needed.
+     */
+    private static void saveToCache(Context context, UserSettings s) {
+        context.getApplicationContext().getSharedPreferences(CACHE_PREFS, Context.MODE_PRIVATE).edit()
+                .putBoolean("saved", true)
+                .putBoolean("live", s.isLiveTrackerEnabled())
+                .putBoolean("d_on", s.isReminderEnabled())
+                .putInt("d_h", s.getReminderHour())
+                .putInt("d_m", s.getReminderMinute())
+                .putBoolean("w_on", s.isWeeklyReminderEnabled())
+                .putInt("w_day", s.getWeeklyReminderDay())
+                .putInt("w_h", s.getWeeklyReminderHour())
+                .putInt("w_m", s.getWeeklyReminderMinute())
+                .putBoolean("m_on", s.isMonthlyReminderEnabled())
+                .putInt("m_day", s.getMonthlyReminderDay())
+                .putInt("m_h", s.getMonthlyReminderHour())
+                .putInt("m_m", s.getMonthlyReminderMinute())
+                .apply();
+    }
+
+    public static void rescheduleFromCache(Context context) {
+        android.content.SharedPreferences p = context.getApplicationContext()
+                .getSharedPreferences(CACHE_PREFS, Context.MODE_PRIVATE);
+        if (!p.getBoolean("saved", false)) return;
+
+        UserSettings s = new UserSettings();
+        s.setReminderEnabled(p.getBoolean("d_on", false));
+        s.setReminderHour(p.getInt("d_h", 20));
+        s.setReminderMinute(p.getInt("d_m", 0));
+        s.setWeeklyReminderEnabled(p.getBoolean("w_on", false));
+        s.setWeeklyReminderDay(p.getInt("w_day", Calendar.SUNDAY));
+        s.setWeeklyReminderHour(p.getInt("w_h", 20));
+        s.setWeeklyReminderMinute(p.getInt("w_m", 0));
+        s.setMonthlyReminderEnabled(p.getBoolean("m_on", false));
+        s.setMonthlyReminderDay(p.getInt("m_day", 1));
+        s.setMonthlyReminderHour(p.getInt("m_h", 20));
+        s.setMonthlyReminderMinute(p.getInt("m_m", 0));
+
+        scheduleDailyReminder(context, s);
+        scheduleWeeklyReport(context, s);
+        scheduleMonthlyReport(context, s);
+        scheduleDailyBaseloadWork(context);
+    }
+
+    public static boolean isLiveTrackerEnabledCached(Context context) {
+        return context.getApplicationContext()
+                .getSharedPreferences(CACHE_PREFS, Context.MODE_PRIVATE)
+                .getBoolean("live", false);
     }
 
     private static void setExactAlarm(AlarmManager alarmManager, long triggerAtMillis, PendingIntent pendingIntent) {

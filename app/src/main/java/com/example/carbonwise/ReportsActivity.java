@@ -28,7 +28,9 @@ public class ReportsActivity extends AppCompatActivity {
     private RecyclerView rvSavedReports;
     private ReportAdapter adapter;
     private final List<SavedReport> reportList = new ArrayList<>();
-    private FirestoreRepository repository;
+    private FirestoreRepository repository;            // settings and activity logs (Firestore)
+    private ReportsRepository reportsRepository;       // saved reports (Realtime Database)
+    private ReportsRepository.Subscription reportsSubscription;
     private double userDailyBudgetKg = CarbonCalculator.DAILY_CARBON_BUDGET_KG;
 
     @Override
@@ -37,6 +39,7 @@ public class ReportsActivity extends AppCompatActivity {
         setContentView(R.layout.activity_reports);
 
         repository = new FirestoreRepository();
+        reportsRepository = new ReportsRepository();
         repository.loadUserSettings(new FirestoreRepository.SettingsCallback() {
             @Override
             public void onSettingsLoaded(UserSettings settings) {
@@ -96,8 +99,9 @@ public class ReportsActivity extends AppCompatActivity {
         }
     }
 
+    // Live list: Realtime Database pushes every add / delete here as it happens
     private void loadReports() {
-        repository.listenToReports(new FirestoreRepository.ReportsCallback() {
+        reportsSubscription = reportsRepository.listenToReports(new ReportsRepository.ReportsCallback() {
             @Override
             public void onReportsLoaded(List<SavedReport> reports) {
                 reportList.clear();
@@ -109,16 +113,28 @@ public class ReportsActivity extends AppCompatActivity {
 
             @Override
             public void onError(String error) {
-                Toast.makeText(ReportsActivity.this, "Error loading reports: " + error, Toast.LENGTH_SHORT).show();
+                Toast.makeText(ReportsActivity.this, "Error loading reports: " + error, Toast.LENGTH_LONG).show();
             }
         });
     }
 
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (reportsSubscription != null) {
+            reportsSubscription.remove();
+            reportsSubscription = null;
+        }
+    }
+
     private void generateAndSaveReport(String periodType) {
         int daysCount = "30_DAYS".equals(periodType) ? 30 : 7;
-        repository.listenToLogs(new FirestoreRepository.LogsCallback() {
+        // One-time read: a live listener here would create another report on every later log change
+        repository.loadLogsOnce(new FirestoreRepository.LogsCallback() {
             @Override
             public void onLogsLoaded(List<ActivityLog> logs) {
+                if (isFinishing() || isDestroyed()) return;
+
                 SimpleDateFormat sdf = new SimpleDateFormat("MMM d, yyyy", Locale.getDefault());
                 Map<String, Double> dailyTotals = new HashMap<>();
                 Map<String, Double> categoryTotals = new HashMap<>();
@@ -176,9 +192,10 @@ public class ReportsActivity extends AppCompatActivity {
                         electricityCo2, transportCo2, mealsCo2, cookingCo2
                 );
 
-                repository.saveGeneratedReport(report, new FirestoreRepository.OperationCallback() {
+                reportsRepository.saveGeneratedReport(report, new ReportsRepository.OperationCallback() {
                     @Override
                     public void onSuccess(String message) {
+                        if (isFinishing() || isDestroyed()) return;
                         Toast.makeText(ReportsActivity.this, message, Toast.LENGTH_SHORT).show();
                         showReportDetailDialog(report);
                     }
@@ -262,7 +279,7 @@ public class ReportsActivity extends AppCompatActivity {
         new AlertDialog.Builder(this)
                 .setTitle("Delete Report")
                 .setMessage("Delete \"" + report.getTitle() + "\" generated on " + report.getDateGenerated() + "?")
-                .setPositiveButton("Delete", (dialog, which) -> repository.deleteReport(report.getId(), new FirestoreRepository.OperationCallback() {
+                .setPositiveButton("Delete", (dialog, which) -> reportsRepository.deleteReport(report.getId(), new ReportsRepository.OperationCallback() {
                     @Override public void onSuccess(String message) { Toast.makeText(ReportsActivity.this, message, Toast.LENGTH_SHORT).show(); }
                     @Override public void onError(String error) { Toast.makeText(ReportsActivity.this, "Delete failed: " + error, Toast.LENGTH_SHORT).show(); }
                 }))

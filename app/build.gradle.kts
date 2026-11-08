@@ -24,6 +24,10 @@ android {
         val localProps = Properties()
         rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { localProps.load(it) }
         buildConfigField("String", "ELECTRICITY_MAPS_TOKEN", "\"${localProps.getProperty("electricitymaps.token", "")}\"")
+
+        // Realtime Database URL (Firebase console > Realtime Database > Data tab, shown above the data).
+        // Optional: leave it empty if google-services.json already contains "firebase_url".
+        buildConfigField("String", "REALTIME_DB_URL", "\"${localProps.getProperty("firebase.database.url", "")}\"")
     }
 
     buildTypes {
@@ -68,6 +72,9 @@ dependencies {
 
     // Cloud Firestore for cloud persistence and sync
     implementation("com.google.firebase:firebase-firestore:25.0.0")
+
+    // Firebase Realtime Database: stores the generated carbon reports (same release train as firebase-auth 25.0.0)
+    implementation("com.google.firebase:firebase-database:23.0.0")
 
     // Retrofit & Gson Converter (REST API & JSON Parsing)
     implementation(libs.retrofit)

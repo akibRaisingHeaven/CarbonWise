@@ -145,44 +145,27 @@ public class FirestoreRepository {
                 });
     }
 
-    public interface ReportsCallback {
-        void onReportsLoaded(List<SavedReport> reports);
-        void onError(String error);
-    }
-
-    public void listenToReports(ReportsCallback callback) {
-        if (userId.isEmpty()) return;
-        db.collection("users").document(userId).collection("saved_reports")
-                .orderBy("timestamp", Query.Direction.DESCENDING)
-                .addSnapshotListener((snapshots, e) -> {
-                    if (e != null) {
-                        callback.onError(e.getMessage());
-                        return;
+    /**
+     * Reads all logs exactly once (no live listener). Use this for work that must run a single
+     * time, such as generating a report; listenToLogs() would run it again on every later change.
+     */
+    public void loadLogsOnce(LogsCallback callback) {
+        if (userId.isEmpty()) {
+            callback.onError("Not signed in");
+            return;
+        }
+        db.collection("users").document(userId).collection("activity_logs")
+                .get()
+                .addOnSuccessListener(snapshots -> {
+                    List<ActivityLog> logs = new ArrayList<>();
+                    for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                        ActivityLog log = doc.toObject(ActivityLog.class);
+                        if (log != null) logs.add(log);
                     }
-                    if (snapshots != null) {
-                        List<SavedReport> list = new ArrayList<>();
-                        for (DocumentSnapshot doc : snapshots.getDocuments()) {
-                            SavedReport report = doc.toObject(SavedReport.class);
-                            if (report != null) list.add(report);
-                        }
-                        callback.onReportsLoaded(list);
-                    }
-                });
-    }
-
-    public void saveGeneratedReport(SavedReport report, OperationCallback callback) {
-        if (userId.isEmpty()) return;
-        db.collection("users").document(userId).collection("saved_reports").document(report.getId())
-                .set(report)
-                .addOnSuccessListener(aVoid -> callback.onSuccess("Report generated & saved!"))
+                    callback.onLogsLoaded(logs);
+                })
                 .addOnFailureListener(e -> callback.onError(e.getMessage()));
     }
 
-    public void deleteReport(String reportId, OperationCallback callback) {
-        if (userId.isEmpty()) return;
-        db.collection("users").document(userId).collection("saved_reports").document(reportId)
-                .delete()
-                .addOnSuccessListener(aVoid -> callback.onSuccess("Report deleted"))
-                .addOnFailureListener(e -> callback.onError(e.getMessage()));
-    }
+    // Saved reports no longer live in Firestore: see ReportsRepository (Realtime Database).
 }

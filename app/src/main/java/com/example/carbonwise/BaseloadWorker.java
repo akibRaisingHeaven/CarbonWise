@@ -6,15 +6,23 @@ import androidx.annotation.NonNull;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 
+import com.google.android.gms.tasks.Tasks;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
+/**
+ * Writes today's "always-on devices" baseload log once a day, shortly after midnight.
+ * doWork() runs on a background thread, so it waits for each Firestore call to finish; returning
+ * early would let Android end the worker before anything was written.
+ */
 public class BaseloadWorker extends Worker {
 
     public BaseloadWorker(@NonNull Context context, @NonNull WorkerParameters workerParams) {
@@ -29,50 +37,51 @@ public class BaseloadWorker extends Worker {
             return Result.success();
         }
 
-        String userId = user.getUid();
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
-        Calendar cal = Calendar.getInstance();
+        try {
+            String userId = user.getUid();
+            FirebaseFirestore db = FirebaseFirestore.getInstance();
+            Calendar cal = Calendar.getInstance();
 
-        SimpleDateFormat sdfDoc = new SimpleDateFormat("yyyyMMdd", Locale.getDefault());
-        SimpleDateFormat sdfDate = new SimpleDateFormat("MMM d, yyyy", Locale.getDefault());
+            String docId = "baseline_" + new SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(cal.getTime());
+            String selectedDateStr = new SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(cal.getTime());
 
-        String docId = "baseline_" + sdfDoc.format(cal.getTime());
-        String selectedDateStr = sdfDate.format(cal.getTime());
+            DocumentSnapshot settingsDoc = Tasks.await(
+                    db.collection("users").document(userId).collection("config").document("settings").get(),
+                    30, TimeUnit.SECONDS);
+            if (!settingsDoc.exists()) return Result.success();
 
-        db.collection("users").document(userId).collection("config").document("settings")
-                .get()
-                .addOnSuccessListener(doc -> {
-                    if (doc.exists()) {
-                        UserSettings settings = doc.toObject(UserSettings.class);
-                        if (settings != null) {
-                            double greenPercent = settings.getGreenElectricityPercent();
-                            Map<String, ApplianceConfig> userAppliances = settings.getAppliances();
+            UserSettings settings = settingsDoc.toObject(UserSettings.class);
+            if (settings == null) return Result.success();
 
-                            db.collection("users").document(userId).collection("activity_logs").document(docId)
-                                    .get()
-                                    .addOnSuccessListener(logDoc -> {
-                                        if (!logDoc.exists()) {
-                                            int totalAlwaysOnWatts = 0;
-                                            if (userAppliances != null) {
-                                                for (ApplianceConfig app : userAppliances.values()) {
-                                                    if (app.isOwned() && app.isAlwaysOn()) {
-                                                        totalAlwaysOnWatts += app.getWattage();
-                                                    }
-                                                }
-                                            }
-                                            if (totalAlwaysOnWatts == 0) totalAlwaysOnWatts = 160;
+            DocumentSnapshot existing = Tasks.await(
+                    db.collection("users").document(userId).collection("activity_logs").document(docId).get(),
+                    30, TimeUnit.SECONDS);
+            if (existing.exists()) return Result.success();
 
-                                            double co2 = CarbonCalculator.calculateElectricityCo2(totalAlwaysOnWatts, 24.0, greenPercent);
-                                            ActivityLog baseloadLog = new ActivityLog(docId, "Electricity", "Baseload (Always-On Devices)", co2, selectedDateStr, cal.getTimeInMillis());
-
-                                            db.collection("users").document(userId).collection("activity_logs").document(docId)
-                                                    .set(baseloadLog);
-                                        }
-                                    });
-                        }
+            Map<String, ApplianceConfig> userAppliances = settings.getAppliances();
+            int totalAlwaysOnWatts = 0;
+            if (userAppliances != null) {
+                for (ApplianceConfig app : userAppliances.values()) {
+                    if (app.isOwned() && app.isAlwaysOn()) {
+                        totalAlwaysOnWatts += app.getWattage();
                     }
-                });
+                }
+            }
+            if (totalAlwaysOnWatts == 0) totalAlwaysOnWatts = 160;
 
-        return Result.success();
+            double co2 = CarbonCalculator.calculateElectricityCo2(
+                    totalAlwaysOnWatts, 24.0, settings.getGreenElectricityPercent());
+            ActivityLog baseloadLog = new ActivityLog(docId, "Electricity", "Baseload (Always-On Devices)",
+                    co2, selectedDateStr, cal.getTimeInMillis());
+
+            Tasks.await(
+                    db.collection("users").document(userId).collection("activity_logs").document(docId).set(baseloadLog),
+                    30, TimeUnit.SECONDS);
+
+            return Result.success();
+        } catch (Exception e) {
+            // Network trouble or a timeout: let WorkManager try again later
+            return Result.retry();
+        }
     }
 }

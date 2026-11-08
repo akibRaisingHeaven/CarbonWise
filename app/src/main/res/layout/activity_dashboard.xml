@@ -20,22 +20,42 @@
         android:paddingTop="16dp"
         android:paddingBottom="8dp">
 
-        <!-- Title and Logout Row -->
+        <!-- Brand mark and app name, alongside the logout action -->
         <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
-            <TextView
-                android:id="@+id/tvDashboardTitle"
+            <LinearLayout
+                android:id="@+id/layoutDashboardBrand"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_alignParentStart="true"
                 android:layout_centerVertical="true"
-                android:singleLine="true"
-                android:text="CarbonWise"
-                android:textColor="#0F172A"
-                android:textSize="22sp"
-                android:textStyle="bold"
-                tools:ignore="HardcodedText" />
+                android:layout_toStartOf="@id/btnLogout"
+                android:layout_marginEnd="8dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:id="@+id/ivDashboardLogo"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginEnd="8dp"
+                    android:contentDescription="@string/carbonwise_logo_description"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/carbonwise_logo" />
+
+                <TextView
+                    android:id="@+id/tvDashboardTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:singleLine="true"
+                    android:text="@string/app_name"
+                    android:textColor="#0F172A"
+                    android:textSize="22sp"
+                    android:textStyle="bold"
+                    tools:ignore="HardcodedText" />
+            </LinearLayout>
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnLogout"

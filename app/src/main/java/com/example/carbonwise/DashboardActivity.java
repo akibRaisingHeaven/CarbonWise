@@ -105,6 +105,9 @@ public class DashboardActivity extends AppCompatActivity {
 
         btnLogout.setOnClickListener(v -> {
             FirebaseAuth.getInstance().signOut();
+            // Stop the live tracker and clear what the widget shows for the signed-out user
+            stopService(new Intent(DashboardActivity.this, CarbonGoalService.class));
+            CarbonSummaryCache.clear(DashboardActivity.this);
             startActivity(new Intent(DashboardActivity.this, LoginActivity.class));
             finish();
         });
@@ -176,6 +179,7 @@ public class DashboardActivity extends AppCompatActivity {
                         userDailyBudgetKg = settings.getDailyBudgetKg();
                     }
                     updateBudgetProgress();
+                    publishWidgetSummary();
                 }
 
                 @Override
@@ -192,6 +196,7 @@ public class DashboardActivity extends AppCompatActivity {
                 if (settings.getDailyBudgetKg() > 0) {
                     userDailyBudgetKg = settings.getDailyBudgetKg();
                     updateBudgetProgress();
+                    publishWidgetSummary();
                 }
                 if (settings.getAppliances() != null) {
                     userAppliances = settings.getAppliances();
@@ -224,7 +229,9 @@ public class DashboardActivity extends AppCompatActivity {
             public void onLogsLoaded(List<ActivityLog> logs) {
                 allFetchedLogs.clear();
                 allFetchedLogs.addAll(logs);
+                logsLoadedOnce = true;
                 filterLogsBySelectedDate();
+                publishWidgetSummary();
             }
 
             @Override
@@ -258,6 +265,24 @@ public class DashboardActivity extends AppCompatActivity {
 
         datePickerDialog.getDatePicker().setMaxDate(System.currentTimeMillis());
         datePickerDialog.show();
+    }
+
+    private boolean logsLoadedOnce = false;
+
+    /** Publishes TODAY's totals (whatever date is selected on screen) for the widget and content provider. */
+    private void publishWidgetSummary() {
+        if (!logsLoadedOnce) return;
+        String today = CarbonSummaryCache.todayString();
+        double total = 0.0;
+        Map<String, Double> categories = new HashMap<>();
+        for (ActivityLog log : allFetchedLogs) {
+            if (today.equals(log.getDate())) {
+                total += log.getCo2Emitted();
+                String category = log.getCategory() == null ? "Other" : log.getCategory();
+                categories.merge(category, log.getCo2Emitted(), Double::sum);
+            }
+        }
+        CarbonSummaryCache.publish(this, today, total, userDailyBudgetKg, categories);
     }
 
     private void filterLogsBySelectedDate() {
@@ -301,7 +326,7 @@ public class DashboardActivity extends AppCompatActivity {
             String title = highestLog.getTitle();
 
             double estimatedMetric = 1.0;
-            if ("Energy".equalsIgnoreCase(category)) {
+            if ("Electricity".equalsIgnoreCase(category) || "Energy".equalsIgnoreCase(category)) {
                 int watts = userAppliances.containsKey(title) ? userAppliances.get(title).getWattage() : CarbonCalculator.DEFAULT_APPLIANCE_WATTS.getOrDefault(title, 100);
                 double effectiveFactor = CarbonCalculator.DEFAULT_GRID_CO2_PER_KWH * (1.0 - (userGreenPercent / 100.0));
                 estimatedMetric = (effectiveFactor > 0) ? (co2 / effectiveFactor) * (1000.0 / watts) : 1.0;

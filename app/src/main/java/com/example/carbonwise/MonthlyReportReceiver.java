@@ -27,8 +27,14 @@ public class MonthlyReportReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
+        // Alarms fire once: queue the next occurrence straight away
+        ReminderScheduler.rescheduleFromCache(context);
+
         FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
         if (user == null) return;
+
+        // Keep the process alive until the Firestore query has answered
+        final PendingResult pendingResult = goAsync();
 
         FirebaseFirestore db = FirebaseFirestore.getInstance();
         Calendar cal = Calendar.getInstance();
@@ -51,7 +57,9 @@ public class MonthlyReportReceiver extends BroadcastReceiver {
                         }
                     }
                     sendNotification(context, monthlyCo2);
-                });
+                    pendingResult.finish();
+                })
+                .addOnFailureListener(e -> pendingResult.finish());
     }
 
     private void sendNotification(Context context, double monthlyCo2) {

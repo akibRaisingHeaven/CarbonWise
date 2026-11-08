@@ -152,9 +152,16 @@ public class NotificationSettingsActivity extends BaseSettingsActivity {
     }
 
     private void updateButtonLabels() {
-        btnDailyReminderTime.setText("⏰ Daily Time: " + formatTimeStr(dailyHour, dailyMinute));
-        btnWeeklyReportTime.setText("⏰ Weekly Time: " + formatTimeStr(weeklyHour, weeklyMinute));
-        btnMonthlyReportTime.setText("⏰ Monthly Time: " + formatTimeStr(monthlyHour, monthlyMinute));
+        btnDailyReminderTime.setText("⏰ " + formatTimeStr(dailyHour, dailyMinute) + "  ·  Change time");
+        btnWeeklyReportTime.setText("⏰ " + formatTimeStr(weeklyHour, weeklyMinute) + "  ·  Change time");
+        btnMonthlyReportTime.setText("⏰ " + formatTimeStr(monthlyHour, monthlyMinute) + "  ·  Change time");
+
+        btnDailyReminderTime.setContentDescription(
+                "Change daily logging reminder time. Currently " + formatTimeStr(dailyHour, dailyMinute));
+        btnWeeklyReportTime.setContentDescription(
+                "Change weekly summary report time. Currently " + formatTimeStr(weeklyHour, weeklyMinute));
+        btnMonthlyReportTime.setContentDescription(
+                "Change monthly summary report time. Currently " + formatTimeStr(monthlyHour, monthlyMinute));
     }
 
     private void saveNotifications() {
