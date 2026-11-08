@@ -7,6 +7,7 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -28,6 +29,7 @@ public class ReportsActivity extends AppCompatActivity {
     private ReportAdapter adapter;
     private final List<SavedReport> reportList = new ArrayList<>();
     private FirestoreRepository repository;
+    private double userDailyBudgetKg = CarbonCalculator.DAILY_CARBON_BUDGET_KG;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,6 +37,15 @@ public class ReportsActivity extends AppCompatActivity {
         setContentView(R.layout.activity_reports);
 
         repository = new FirestoreRepository();
+        repository.loadUserSettings(new FirestoreRepository.SettingsCallback() {
+            @Override
+            public void onSettingsLoaded(UserSettings settings) {
+                if (settings.getDailyBudgetKg() > 0) userDailyBudgetKg = settings.getDailyBudgetKg();
+            }
+
+            @Override
+            public void onNoSettingsFound() { }
+        });
 
         rvSavedReports = findViewById(R.id.rvSavedReports);
         if (rvSavedReports != null) {
@@ -57,13 +68,24 @@ public class ReportsActivity extends AppCompatActivity {
             rvSavedReports.setAdapter(adapter);
         }
 
+        TextView tvTitle = findViewById(R.id.tvScreenTitle);
+        if (tvTitle != null) tvTitle.setText("In-App Saved Reports");
+
+        TextView btnBack = findViewById(R.id.btnSettingsBack);
+        if (btnBack != null) btnBack.setOnClickListener(v -> finish());
+
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                finish();
+            }
+        });
+
         Button btn7 = findViewById(R.id.btnGenerate7Days);
         Button btn30 = findViewById(R.id.btnGenerate30Days);
-        Button btnBack = findViewById(R.id.btnBackAnalytics);
 
         if (btn7 != null) btn7.setOnClickListener(v -> generateAndSaveReport("7_DAYS"));
         if (btn30 != null) btn30.setOnClickListener(v -> generateAndSaveReport("30_DAYS"));
-        if (btnBack != null) btnBack.setOnClickListener(v -> finish());
 
         loadReports();
 
@@ -133,7 +155,7 @@ public class ReportsActivity extends AppCompatActivity {
                 }
 
                 for (Double val : dailyTotals.values()) {
-                    if (val != null && val > CarbonCalculator.DAILY_CARBON_BUDGET_KG) {
+                    if (val != null && val > userDailyBudgetKg) {
                         daysOverBudget++;
                     }
                 }

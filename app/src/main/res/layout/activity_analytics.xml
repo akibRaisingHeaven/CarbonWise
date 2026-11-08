@@ -1,30 +1,161 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="#F8FAFC" android:padding="16dp" tools:ignore="HardcodedText,ButtonStyle,TextContrastCheck,SpeakableTextPresentCheck,VisualLintButtonSize,VisualLintBounds">
-    <!--  Top Title Header  -->
-    <TextView android:id="@+id/tvAnalyticsTitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Emission Trend Analytics" android:textColor="#0F172A" android:textSize="20sp" android:textStyle="bold"/>
-    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="Track historical patterns across 7-day and 30-day windows." android:textColor="#475569" android:textSize="13sp"/>
-    <!--  Toggle Buttons: 7 Days vs 30 Days  -->
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:orientation="horizontal">
-        <Button android:id="@+id/btn7Days" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginEnd="6dp" android:text="7 DAYS"/>
-        <Button android:id="@+id/btn30Days" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginStart="6dp" android:text="30 DAYS"/>
-    </LinearLayout>
-    <!--  Summary Overview Card  -->
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:background="#1D4ED8" android:orientation="vertical" android:padding="16dp">
-        <TextView android:id="@+id/tvPeriodTitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="7-Day Emission Summary" android:textColor="#E2E8F0" android:textSize="14sp"/>
-        <TextView android:id="@+id/tvTotalPeriodCo2" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="0.0 kg CO₂ Total" android:textColor="#FFFFFF" android:textSize="24sp" android:textStyle="bold"/>
-        <TextView android:id="@+id/tvDailyAverageCo2" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="Daily Avg: 0.0 kg CO₂ | Days Over Budget: 0" android:textColor="#F8FAFC" android:textSize="12sp"/>
-        <TextView android:id="@+id/tvCategoryBreakdown" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="⚡ Electricity: 0% | 🚗 Transport: 0% | 🍲 Meals: 0%" android:textColor="#E0F2FE" android:textSize="12sp"/>
-    </LinearLayout>
-    <!--  Daily Log Section  -->
-    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:layout_marginBottom="8dp" android:text="Daily Footprint Trend" android:textColor="#0F172A" android:textSize="15sp" android:textStyle="bold"/>
-    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:contentDescription="Daily footprint trend log list">
-        <LinearLayout android:id="@+id/containerChartRows" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"/>
-    </ScrollView>
-    <!--  Bottom Actions  -->
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:orientation="vertical">
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="8dp" android:orientation="horizontal">
-            <Button android:id="@+id/btnGenerateReport" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:backgroundTint="#047857" android:ellipsize="end" android:maxLines="1" android:text="+ Generate Report" android:textColor="#FFFFFF" android:textSize="13sp"/>
-            <Button android:id="@+id/btnViewSavedReports" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginStart="4dp" android:backgroundTint="#334155" android:ellipsize="end" android:maxLines="1" android:text="📁 Saved Reports" android:textColor="#FFFFFF" android:textSize="13sp"/>
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F8FAFC"
+    android:orientation="vertical"
+    tools:ignore="HardcodedText,ButtonStyle,TextContrastCheck,SpeakableTextPresentCheck,VisualLintButtonSize,VisualLintBounds">
+
+    <!-- Top Return Header (consistent with Settings/Setup) -->
+    <include
+        layout="@layout/include_settings_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingBottom="16dp">
+
+        <!-- Subtitle -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="Track historical patterns across 7-day and 30-day windows."
+            android:textColor="#475569"
+            android:textSize="13sp" />
+
+        <!-- Toggle Buttons: 7 Days vs 30 Days -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn7Days"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="6dp"
+                android:text="7 DAYS" />
+
+            <Button
+                android:id="@+id/btn30Days"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:layout_marginStart="6dp"
+                android:text="30 DAYS" />
         </LinearLayout>
-        <Button android:id="@+id/btnReturnDashboard" android:layout_width="match_parent" android:layout_height="48dp" android:backgroundTint="#1D4ED8" android:text="← Return to Dashboard" android:textColor="#FFFFFF" android:textSize="14sp"/>
+
+        <!-- Summary Overview Card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="#1D4ED8"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:id="@+id/tvPeriodTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="7-Day Emission Summary"
+                android:textColor="#E2E8F0"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/tvTotalPeriodCo2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="0.0 kg CO₂ Total"
+                android:textColor="#FFFFFF"
+                android:textSize="24sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvDailyAverageCo2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="Daily Avg: 0.0 kg CO₂ | Days Over Budget: 0"
+                android:textColor="#F8FAFC"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/tvCategoryBreakdown"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="⚡ Electricity: 0% | 🚗 Transport: 0% | 🍲 Meals: 0%"
+                android:textColor="#E0F2FE"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- Daily Log Section -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="8dp"
+            android:text="Daily Footprint Trend"
+            android:textColor="#0F172A"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:contentDescription="Daily footprint trend log list">
+
+            <LinearLayout
+                android:id="@+id/containerChartRows"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+        </ScrollView>
+
+        <!-- Bottom Actions -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnGenerateReport"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:backgroundTint="#047857"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="+ Generate Report"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp" />
+
+            <Button
+                android:id="@+id/btnViewSavedReports"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:backgroundTint="#334155"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="📁 Saved Reports"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp" />
+        </LinearLayout>
     </LinearLayout>
 </LinearLayout>

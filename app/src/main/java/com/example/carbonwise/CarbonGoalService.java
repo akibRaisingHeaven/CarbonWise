@@ -32,6 +32,9 @@ public class CarbonGoalService extends Service {
     private ListenerRegistration logListener;
     private String userId;
     private String currentNotificationText = "Monitoring baseline emissions & eco-goals...";
+    private ListenerRegistration settingsListener;
+    private double lastTodayTotal = 0.0;
+    private double dailyBudgetKg = CarbonCalculator.DAILY_CARBON_BUDGET_KG;
 
     @Override
     public void onCreate() {
@@ -54,8 +57,41 @@ public class CarbonGoalService extends Service {
         return START_STICKY;
     }
 
+    // Writes today's progress against the budget chosen in Setup to the cache and the notification
+    private void publishProgress() {
+        // Cache live metrics in SharedPreferences for CarbonContentProvider
+        SharedPreferences prefs = getSharedPreferences("carbon_cache_prefs", MODE_PRIVATE);
+        prefs.edit()
+                .putFloat("today_co2", (float) lastTodayTotal)
+                .putFloat("daily_goal", (float) dailyBudgetKg)
+                .apply();
+
+        // Notify ContentProvider observers of URI data updates
+        getContentResolver().notifyChange(CarbonContentProvider.CONTENT_URI, null);
+
+        int percentage = (int) Math.min(100, (lastTodayTotal / dailyBudgetKg) * 100);
+        currentNotificationText = String.format(Locale.getDefault(),
+                "Today: %.1f / %.1f kg CO₂ (%d%% used)", lastTodayTotal, dailyBudgetKg, percentage);
+
+        NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (manager != null) {
+            manager.notify(NOTIFICATION_ID, buildNotification(currentNotificationText));
+        }
+    }
+
     private void startLiveEmissionsListener() {
         if (userId == null || db == null) return;
+
+        // Follow the daily budget saved in Setup
+        settingsListener = db.collection("users").document(userId).collection("config").document("settings")
+                .addSnapshotListener((doc, e) -> {
+                    if (e != null || doc == null || !doc.exists()) return;
+                    Double budget = doc.getDouble("dailyBudgetKg");
+                    if (budget != null && budget > 0) {
+                        dailyBudgetKg = CarbonCalculator.clampBudget(budget);
+                        publishProgress();
+                    }
+                });
 
         String todayStr = new SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(new Date());
 
@@ -71,23 +107,8 @@ public class CarbonGoalService extends Service {
                         }
                     }
 
-                    // Cache live metrics in SharedPreferences for CarbonContentProvider
-                    SharedPreferences prefs = getSharedPreferences("carbon_cache_prefs", MODE_PRIVATE);
-                    prefs.edit()
-                            .putFloat("today_co2", (float) todayTotal)
-                            .putFloat("daily_goal", (float) CarbonCalculator.DAILY_CARBON_BUDGET_KG)
-                            .apply();
-
-                    // Notify ContentProvider observers of URI data updates
-                    getContentResolver().notifyChange(CarbonContentProvider.CONTENT_URI, null);
-
-                    int percentage = (int) Math.min(100, (todayTotal / CarbonCalculator.DAILY_CARBON_BUDGET_KG) * 100);
-                    currentNotificationText = String.format(Locale.getDefault(), "Today: %.1f / 15.0 kg CO₂ (%d%% used)", todayTotal, percentage);
-
-                    NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-                    if (manager != null) {
-                        manager.notify(NOTIFICATION_ID, buildNotification(currentNotificationText));
-                    }
+                    lastTodayTotal = todayTotal;
+                    publishProgress();
                 });
     }
 
@@ -130,6 +151,10 @@ public class CarbonGoalService extends Service {
         if (logListener != null) {
             logListener.remove();
             logListener = null;
+        }
+        if (settingsListener != null) {
+            settingsListener.remove();
+            settingsListener = null;
         }
     }
 

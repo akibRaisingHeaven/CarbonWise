@@ -129,7 +129,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:text="Daily Budget: 0.0 / 15.0 kg CO₂ (0%)"
+                    android:text="Daily Budget: loading..."
                     android:textColor="#FFFFFF"
                     android:textSize="12sp"
                     tools:ignore="HardcodedText" />
@@ -148,68 +148,81 @@
 
     </LinearLayout>
 
-    <!-- Scrollable Middle Section (Eco-Suggestion & Activity Logs) -->
-    <androidx.core.widget.NestedScrollView
+    <!-- Middle section: the Eco-Suggestion scrolls away under the blue banner,
+         the "Activity Logs" header stays pinned, and the log list scrolls beneath it -->
+    <androidx.coordinatorlayout.widget.CoordinatorLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@+id/layoutFixedTop"
         android:layout_above="@+id/layoutBottomBar"
-        android:fillViewport="true"
-        android:paddingHorizontal="16dp"
-        android:paddingTop="8dp">
+        android:layout_below="@+id/layoutFixedTop">
 
-        <LinearLayout
+        <com.google.android.material.appbar.AppBarLayout
+            android:id="@+id/appBarMiddle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:background="@color/bg_light"
+            android:stateListAnimator="@null"
+            app:elevation="0dp">
 
-            <!-- Eco Suggestion Card (Scrollable) -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardSuggestion"
+            <!-- Scrolls out of view (clipped at the banner's bottom edge) -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                app:cardBackgroundColor="#F0FDF4"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="0dp"
-                app:strokeColor="#BBF7D0"
-                app:strokeWidth="1dp">
+                android:orientation="vertical"
+                android:paddingHorizontal="16dp"
+                android:paddingTop="12dp"
+                app:layout_scrollFlags="scroll">
 
-                <LinearLayout
+                <!-- Eco Suggestion Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/cardSuggestion"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="14dp">
+                    app:cardBackgroundColor="#F0FDF4"
+                    app:cardCornerRadius="12dp"
+                    app:cardElevation="0dp"
+                    app:strokeColor="#BBF7D0"
+                    app:strokeWidth="1dp">
 
-                    <TextView
-                        android:layout_width="wrap_content"
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="🌱 Eco-Suggestion"
-                        android:textColor="#166534"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        tools:ignore="HardcodedText" />
+                        android:orientation="vertical"
+                        android:padding="14dp">
 
-                    <TextView
-                        android:id="@+id/tvEcoSuggestion"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="Log your daily activities to get customized carbon reduction tips."
-                        android:textColor="#15803D"
-                        android:textSize="13sp"
-                        tools:ignore="HardcodedText" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="🌱 Eco-Suggestion"
+                            android:textColor="#166534"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            tools:ignore="HardcodedText" />
 
-            <!-- Date Selection & Outage Header Bar -->
+                        <TextView
+                            android:id="@+id/tvEcoSuggestion"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:text="Log your daily activities to get customized carbon reduction tips."
+                            android:textColor="#15803D"
+                            android:textSize="13sp"
+                            tools:ignore="HardcodedText" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+
+            <!-- Pinned: Activity Logs header with Outage and Date buttons (no scroll flags) -->
             <LinearLayout
                 android:id="@+id/layoutDateSelector"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
+                android:background="@color/bg_light"
                 android:gravity="center_vertical"
-                android:orientation="horizontal">
+                android:orientation="horizontal"
+                android:paddingHorizontal="16dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="8dp">
 
                 <TextView
                     android:id="@+id/tvRecentLogsHeader"
@@ -250,16 +263,24 @@
                     tools:ignore="HardcodedText" />
             </LinearLayout>
 
-            <!-- Activity Logs List -->
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/rvActivityLogs"
+            <!-- Divider under the pinned header so the list has a visible edge to slide under -->
+            <View
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="16dp" />
+                android:layout_height="1dp"
+                android:background="#E2E8F0" />
+        </com.google.android.material.appbar.AppBarLayout>
 
-        </LinearLayout>
-    </androidx.core.widget.NestedScrollView>
+        <!-- Activity Logs List: scrolls under the pinned header -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvActivityLogs"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="true"
+            android:paddingHorizontal="16dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+    </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
     <!-- Fixed Bottom Button Bar (Pinned) -->
     <LinearLayout

@@ -19,7 +19,11 @@
         <activity android:name=".LoginActivity" android:exported="false"/>
         <activity android:name=".SignUpActivity" android:exported="false"/>
         <activity android:name=".DashboardActivity" android:exported="false"/>
-        <activity android:name=".SettingsActivity" android:exported="false" android:label="Household Electricity Setup"/>
+        <activity android:name=".SettingsActivity" android:exported="false" android:label="Settings"/>
+        <activity android:name=".GreenElectricitySettingsActivity" android:exported="false" android:label="Green Electricity"/>
+        <activity android:name=".BudgetSettingsActivity" android:exported="false" android:label="Carbon Budget Goal"/>
+        <activity android:name=".NotificationSettingsActivity" android:exported="false" android:label="Notifications"/>
+        <activity android:name=".AppliancesSettingsActivity" android:exported="false" android:label="Owned Appliances"/>
         <activity android:name=".AnalyticsActivity" android:exported="false" android:label="Emission Trend Analytics"/>
         <activity android:name=".MapPickerActivity" android:exported="false" android:label="Select Location on Map"/>
         <activity android:name=".ReportsActivity" android:exported="false" android:label="Reports"/>

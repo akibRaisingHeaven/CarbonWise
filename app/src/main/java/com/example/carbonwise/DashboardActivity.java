@@ -47,6 +47,8 @@ public class DashboardActivity extends AppCompatActivity {
     private Calendar calendar;
 
     private double userGreenPercent = 0.0;
+    // Daily budget chosen in Setup (falls back to the 15 kg default until settings load)
+    private double userDailyBudgetKg = CarbonCalculator.DAILY_CARBON_BUDGET_KG;
     private Map<String, ApplianceConfig> userAppliances = new HashMap<>();
 
     private EditText pendingMapEditText = null;
@@ -133,7 +135,7 @@ public class DashboardActivity extends AppCompatActivity {
         allFetchedLogs = new ArrayList<>();
 
         rvActivityLogs.setLayoutManager(new LinearLayoutManager(this));
-        rvActivityLogs.setNestedScrollingEnabled(false);
+        rvActivityLogs.setNestedScrollingEnabled(true);
 
         adapter = new ActivityLogAdapter(logList, new ActivityLogAdapter.OnLogActionListener() {
             @Override
@@ -157,11 +159,40 @@ public class DashboardActivity extends AppCompatActivity {
         rvActivityLogs.setAdapter(adapter);
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Setup now lives in separate screens that save on their own and simply finish(),
+        // so pick up everything they may have changed (budget, green %, appliances) here
+        if (repository != null) {
+            repository.loadUserSettings(new FirestoreRepository.SettingsCallback() {
+                @Override
+                public void onSettingsLoaded(UserSettings settings) {
+                    userGreenPercent = settings.getGreenElectricityPercent();
+                    if (settings.getAppliances() != null) {
+                        userAppliances = settings.getAppliances();
+                    }
+                    if (settings.getDailyBudgetKg() > 0) {
+                        userDailyBudgetKg = settings.getDailyBudgetKg();
+                    }
+                    updateBudgetProgress();
+                }
+
+                @Override
+                public void onNoSettingsFound() { }
+            });
+        }
+    }
+
     private void loadSettingsAndLogs() {
         repository.loadUserSettings(new FirestoreRepository.SettingsCallback() {
             @Override
             public void onSettingsLoaded(UserSettings settings) {
                 userGreenPercent = settings.getGreenElectricityPercent();
+                if (settings.getDailyBudgetKg() > 0) {
+                    userDailyBudgetKg = settings.getDailyBudgetKg();
+                    updateBudgetProgress();
+                }
                 if (settings.getAppliances() != null) {
                     userAppliances = settings.getAppliances();
                 }
@@ -250,7 +281,7 @@ public class DashboardActivity extends AppCompatActivity {
     private void updateBudgetProgress() {
         tvTotalCo2.setText(String.format(Locale.getDefault(), "%.1f kg CO₂", currentTotalCo2));
 
-        double budget = CarbonCalculator.DAILY_CARBON_BUDGET_KG;
+        double budget = userDailyBudgetKg;
         int percentage = (int) Math.min(100, (currentTotalCo2 / budget) * 100);
 
         pbDailyBudget.setProgress(percentage);

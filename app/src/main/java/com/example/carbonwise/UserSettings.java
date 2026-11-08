@@ -67,8 +67,8 @@ public class UserSettings {
                         Map<String, ApplianceConfig> appliances) {
         this.greenElectricityPercent = greenElectricityPercent;
         this.budgetTier = budgetTier;
-        this.customBudgetKg = customBudgetKg;
-        this.dailyBudgetKg = dailyBudgetKg;
+        this.customBudgetKg = CarbonCalculator.clampBudget(customBudgetKg);
+        this.dailyBudgetKg = CarbonCalculator.clampBudget(dailyBudgetKg);
         this.liveTrackerEnabled = liveTrackerEnabled;
         this.reminderEnabled = reminderEnabled;
         this.reminderHour = reminderHour;
@@ -91,10 +91,11 @@ public class UserSettings {
     public void setBudgetTier(String budgetTier) { this.budgetTier = budgetTier; }
 
     public double getCustomBudgetKg() { return customBudgetKg; }
-    public void setCustomBudgetKg(double customBudgetKg) { this.customBudgetKg = customBudgetKg; }
+    // Setters cap the value, so an old over-limit value stored in Firestore is capped when loaded
+    public void setCustomBudgetKg(double customBudgetKg) { this.customBudgetKg = CarbonCalculator.clampBudget(customBudgetKg); }
 
     public double getDailyBudgetKg() { return dailyBudgetKg; }
-    public void setDailyBudgetKg(double dailyBudgetKg) { this.dailyBudgetKg = dailyBudgetKg; }
+    public void setDailyBudgetKg(double dailyBudgetKg) { this.dailyBudgetKg = CarbonCalculator.clampBudget(dailyBudgetKg); }
 
     public boolean isLiveTrackerEnabled() { return liveTrackerEnabled; }
     public void setLiveTrackerEnabled(boolean liveTrackerEnabled) { this.liveTrackerEnabled = liveTrackerEnabled; }

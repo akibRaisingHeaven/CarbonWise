@@ -9,6 +9,14 @@ import java.util.Map;
 public class CarbonCalculator {
 
     public static final double DAILY_CARBON_BUDGET_KG = 15.0;
+
+    // Hard ceiling for any daily budget. A higher goal makes the budget meaningless.
+    public static final double MAX_DAILY_BUDGET_KG = 20.0;
+
+    /** Caps a budget at MAX_DAILY_BUDGET_KG. Used on every read and write of a budget. */
+    public static double clampBudget(double budgetKg) {
+        return Math.min(budgetKg, MAX_DAILY_BUDGET_KG);
+    }
     public static final double DEFAULT_GRID_CO2_PER_KWH = 0.50; // Standard grid emission factor
 
     // Extended Transport Emission Factors (kg CO2 / km)

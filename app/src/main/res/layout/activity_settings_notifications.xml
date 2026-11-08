@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F8FAFC"
+    android:orientation="vertical"
+    tools:ignore="HardcodedText,ButtonStyle,TextContrastCheck">
+
+    <include
+        layout="@layout/include_settings_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="20dp">
+
+            <!-- Live tracker -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Live Tracker"
+                android:textColor="#334155"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <CheckBox
+                android:id="@+id/cbEnableLiveTracker"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:minHeight="48dp"
+                android:text="Enable Persistent Live Tracker Notification"
+                android:textColor="#0F172A"
+                android:textSize="14sp" />
+
+            <!-- Reminders and reports -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="Reminders &amp; Reports Schedule"
+                android:textColor="#334155"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <CheckBox
+                android:id="@+id/cbEnableDailyReminder"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:minHeight="48dp"
+                android:text="Daily Logging Reminder"
+                android:textColor="#0F172A" />
+
+            <Button
+                android:id="@+id/btnDailyReminderTime"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="⏰ Daily Time: 8:00 PM"
+                android:textColor="#1D4ED8" />
+
+            <CheckBox
+                android:id="@+id/cbEnableWeeklyReport"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:minHeight="48dp"
+                android:text="Weekly Summary Report"
+                android:textColor="#0F172A" />
+
+            <Spinner
+                android:id="@+id/spWeeklyDay"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:popupBackground="#FFFFFF" />
+
+            <Button
+                android:id="@+id/btnWeeklyReportTime"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="⏰ Weekly Time: 8:00 PM"
+                android:textColor="#1D4ED8" />
+
+            <CheckBox
+                android:id="@+id/cbEnableMonthlyReport"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:minHeight="48dp"
+                android:text="Monthly Summary Report"
+                android:textColor="#0F172A" />
+
+            <Spinner
+                android:id="@+id/spMonthlyDay"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:popupBackground="#FFFFFF" />
+
+            <Button
+                android:id="@+id/btnMonthlyReportTime"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="⏰ Monthly Time: 8:00 PM"
+                android:textColor="#1D4ED8" />
+        </LinearLayout>
+    </ScrollView>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#FFFFFF"
+        android:elevation="8dp"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <Button
+            android:id="@+id/btnSave"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:backgroundTint="#059669"
+            android:text="Save"
+            android:textColor="#FFFFFF" />
+    </LinearLayout>
+</LinearLayout>

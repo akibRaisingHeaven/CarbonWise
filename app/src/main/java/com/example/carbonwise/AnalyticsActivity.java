@@ -9,6 +9,7 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.firebase.auth.FirebaseAuth;
@@ -53,19 +54,29 @@ public class AnalyticsActivity extends AppCompatActivity {
         userId = user.getUid();
         db = FirebaseFirestore.getInstance();
 
+        TextView tvTitle = findViewById(R.id.tvScreenTitle);
+        if (tvTitle != null) tvTitle.setText("Emission Trend Analytics");
+
+        TextView btnBack = findViewById(R.id.btnSettingsBack);
+        if (btnBack != null) btnBack.setOnClickListener(v -> finish());
+
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                finish();
+            }
+        });
+
         btn7Days = findViewById(R.id.btn7Days);
         btn30Days = findViewById(R.id.btn30Days);
         Button btnGenerateReport = findViewById(R.id.btnGenerateReport);
         Button btnViewSavedReports = findViewById(R.id.btnViewSavedReports);
-        Button btnReturnDashboard = findViewById(R.id.btnReturnDashboard);
 
         tvPeriodTitle = findViewById(R.id.tvPeriodTitle);
         tvTotalPeriodCo2 = findViewById(R.id.tvTotalPeriodCo2);
         tvDailyAverageCo2 = findViewById(R.id.tvDailyAverageCo2);
         tvCategoryBreakdown = findViewById(R.id.tvCategoryBreakdown);
         containerChartRows = findViewById(R.id.containerChartRows);
-
-        if (btnReturnDashboard != null) btnReturnDashboard.setOnClickListener(v -> finish());
 
         if (btnGenerateReport != null) {
             btnGenerateReport.setOnClickListener(v -> {
@@ -143,7 +154,7 @@ public class AnalyticsActivity extends AppCompatActivity {
                         for (DocumentSnapshot doc : snapshots.getDocuments()) {
                             Double bKg = doc.getDouble("budgetKg");
                             if (bKg != null) {
-                                historicalBudgets.put(doc.getId(), bKg);
+                                historicalBudgets.put(doc.getId(), CarbonCalculator.clampBudget(bKg));
                             }
                         }
                     }

@@ -125,7 +125,9 @@
                     android:layout_width="0dp"
                     android:layout_height="48dp"
                     android:layout_weight="1"
-                    android:hint="Origin location"
+                    android:hint="Origin"
+                    android:maxLines="1"
+                    android:inputType="text"
                     android:padding="12dp"
                     android:textColor="#0F172A"
                     android:textColorHint="#94A3B8" />
@@ -157,7 +159,9 @@
                     android:layout_width="0dp"
                     android:layout_height="48dp"
                     android:layout_weight="1"
-                    android:hint="Destination location"
+                    android:hint="Destination"
+                    android:maxLines="1"
+                    android:inputType="text"
                     android:padding="12dp"
                     android:textColor="#0F172A"
                     android:textColorHint="#94A3B8" />
