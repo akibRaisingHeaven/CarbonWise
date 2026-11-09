@@ -127,7 +127,40 @@ public class ReportsActivity extends AppCompatActivity {
         }
     }
 
+    // Step 1 of 3: today's budget from the current settings
     private void generateAndSaveReport(String periodType) {
+        SettingsStore.load(new SettingsStore.LoadCallback() {
+            @Override
+            public void onLoaded(UserSettings settings) {
+                if (settings.getDailyBudgetKg() > 0) userDailyBudgetKg = settings.getDailyBudgetKg();
+                loadBudgetsThenGenerate(periodType);
+            }
+
+            @Override
+            public void onError(String reason) {
+                loadBudgetsThenGenerate(periodType);
+            }
+        });
+    }
+
+    // Step 2 of 3: the budget that was saved for each past day
+    private void loadBudgetsThenGenerate(String periodType) {
+        repository.loadDailyBudgets(new FirestoreRepository.BudgetsCallback() {
+            @Override
+            public void onBudgetsLoaded(Map<String, Double> budgetsByDate) {
+                buildAndSaveReport(periodType, budgetsByDate);
+            }
+
+            @Override
+            public void onError(String error) {
+                buildAndSaveReport(periodType, new HashMap<>());
+            }
+        });
+    }
+
+    // Step 3 of 3: read the logs, count the days, save the report
+    private void buildAndSaveReport(String periodType, Map<String, Double> savedBudgets) {
+        if (isFinishing() || isDestroyed()) return;
         int daysCount = "30_DAYS".equals(periodType) ? 30 : 7;
         // One-time read: a live listener here would create another report on every later log change
         repository.loadLogsOnce(new FirestoreRepository.LogsCallback() {
@@ -170,8 +203,11 @@ public class ReportsActivity extends AppCompatActivity {
                     }
                 }
 
-                for (Double val : dailyTotals.values()) {
-                    if (val != null && val > userDailyBudgetKg) {
+                // Each day is judged against the budget that applied on that day
+                String todayStr = sdf.format(new Date());
+                for (Map.Entry<String, Double> day : dailyTotals.entrySet()) {
+                    double dayBudget = BudgetResolver.budgetForDate(savedBudgets, day.getKey(), todayStr, userDailyBudgetKg);
+                    if (day.getValue() != null && day.getValue() > dayBudget) {
                         daysOverBudget++;
                     }
                 }
@@ -237,7 +273,10 @@ public class ReportsActivity extends AppCompatActivity {
         if (tvSub != null) tvSub.setText("Generated On: " + report.getDateGenerated());
         if (tvTotal != null) tvTotal.setText(String.format(Locale.getDefault(), "%.1f kg", report.getTotalCo2()));
         if (tvAvg != null) tvAvg.setText(String.format(Locale.getDefault(), "%.1f kg", report.getDailyAvg()));
-        if (tvOver != null) tvOver.setText(String.format(Locale.getDefault(), "%d days", report.getDaysOverBudget()));
+        if (tvOver != null) {
+            int daysOver = report.getDaysOverBudget();
+            tvOver.setText(String.format(Locale.getDefault(), "%d %s", daysOver, daysOver == 1 ? "day" : "days"));
+        }
 
         double catSum = report.getElectricityCo2() + report.getTransportCo2() + report.getMealsCo2() + report.getCookingCo2();
         int ePct = catSum > 0 ? (int) Math.round((report.getElectricityCo2() / catSum) * 100) : 0;

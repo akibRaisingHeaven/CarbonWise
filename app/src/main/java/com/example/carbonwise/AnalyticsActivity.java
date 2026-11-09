@@ -233,18 +233,8 @@ public class AnalyticsActivity extends AppCompatActivity {
         for (String dateKey : dateKeys) {
             double daySum = dailyTotals.getOrDefault(dateKey, 0.0);
 
-            // Fallback logic:
-            // 1. Explicit saved historical budget
-            // 2. If today, activeUserBudget
-            // 3. If past date with no recorded budget, legacy default of 15.0 kg
-            double dayBudget;
-            if (historicalBudgets.containsKey(dateKey)) {
-                dayBudget = historicalBudgets.get(dateKey);
-            } else if (dateKey.equals(todayStr)) {
-                dayBudget = activeUserBudget;
-            } else {
-                dayBudget = 15.0; // Legacy default budget for unrecorded past dates
-            }
+            // Same per-day rule as the generated reports (see BudgetResolver)
+            double dayBudget = BudgetResolver.budgetForDate(historicalBudgets, dateKey, todayStr, activeUserBudget);
 
             if (daySum > dayBudget) {
                 daysOverBudget++;
@@ -285,14 +275,7 @@ public class AnalyticsActivity extends AppCompatActivity {
             Double dayCo2Obj = dailyTotals.get(fullDateStr);
             double dayCo2 = (dayCo2Obj != null) ? dayCo2Obj : 0.0;
 
-            double dayBudget;
-            if (historicalBudgets.containsKey(fullDateStr)) {
-                dayBudget = historicalBudgets.get(fullDateStr);
-            } else if (fullDateStr.equals(todayStr)) {
-                dayBudget = activeUserBudget;
-            } else {
-                dayBudget = 15.0; // Legacy default budget for unrecorded past dates
-            }
+            double dayBudget = BudgetResolver.budgetForDate(historicalBudgets, fullDateStr, todayStr, activeUserBudget);
 
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.VERTICAL);

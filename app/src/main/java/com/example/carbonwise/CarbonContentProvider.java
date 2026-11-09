@@ -40,6 +40,12 @@ public class CarbonContentProvider extends ContentProvider {
     public static final String COL_OVER = "over_budget";
     public static final String COL_DATE = "date";
     public static final String COL_UPDATED = "updated_at";
+    public static final String COL_WEEK_TOTAL = "week_total_co2_kg";
+    public static final String COL_WEEK_BUDGET = "week_budget_kg";
+    public static final String COL_WEEK_LABEL = "week_label";
+    public static final String COL_MONTH_TOTAL = "month_total_co2_kg";
+    public static final String COL_MONTH_BUDGET = "month_budget_kg";
+    public static final String COL_MONTH_LABEL = "month_label";
 
     // Column names of the /categories rows
     public static final String COL_CATEGORY = "category";
@@ -79,12 +85,24 @@ public class CarbonContentProvider extends ContentProvider {
                 if (goal <= 0) goal = CarbonCalculator.DAILY_CARBON_BUDGET_KG;
                 int percent = (int) Math.round(total / goal * 100.0);
 
+                boolean aggregatesAreToday = CarbonSummaryCache.todayString().equals(
+                        prefs.getString(CarbonSummaryCache.KEY_AGGREGATE_DATE, ""));
+                double weekTotal = aggregatesAreToday ? prefs.getFloat(CarbonSummaryCache.KEY_WEEK_TOTAL, 0f) : 0.0;
+                double weekBudget = aggregatesAreToday ? prefs.getFloat(CarbonSummaryCache.KEY_WEEK_BUDGET, 0f) : 0.0;
+                double monthTotal = aggregatesAreToday ? prefs.getFloat(CarbonSummaryCache.KEY_MONTH_TOTAL, 0f) : 0.0;
+                double monthBudget = aggregatesAreToday ? prefs.getFloat(CarbonSummaryCache.KEY_MONTH_BUDGET, 0f) : 0.0;
                 MatrixCursor c = new MatrixCursor(new String[]{
-                        COL_TOTAL, COL_GOAL, COL_PERCENT, COL_OVER, COL_DATE, COL_UPDATED});
+                        COL_TOTAL, COL_GOAL, COL_PERCENT, COL_OVER, COL_DATE, COL_UPDATED,
+                        COL_WEEK_TOTAL, COL_WEEK_BUDGET, COL_WEEK_LABEL,
+                        COL_MONTH_TOTAL, COL_MONTH_BUDGET, COL_MONTH_LABEL});
                 c.addRow(new Object[]{
                         total, goal, percent, total > goal ? 1 : 0,
                         CarbonSummaryCache.todayString(),
-                        prefs.getLong(CarbonSummaryCache.KEY_UPDATED, 0L)});
+                        (isToday ? prefs.getLong(CarbonSummaryCache.KEY_UPDATED, 0L) : 0L),
+                        weekTotal, weekBudget,
+                        prefs.getString(CarbonSummaryCache.KEY_WEEK_LABEL, "This week"),
+                        monthTotal, monthBudget,
+                        prefs.getString(CarbonSummaryCache.KEY_MONTH_LABEL, "This month")});
                 cursor = c;
                 break;
             }

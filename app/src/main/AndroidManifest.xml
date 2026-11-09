@@ -21,6 +21,7 @@
         <activity android:name=".LoginActivity" android:exported="false"/>
         <activity android:name=".SignUpActivity" android:exported="false"/>
         <activity android:name=".DashboardActivity" android:exported="false"/>
+        <activity android:name=".QuickLogActivity" android:exported="false" android:excludeFromRecents="true" android:launchMode="singleTop" android:theme="@style/Theme.CarbonWise.QuickLogDialog"/>
         <activity android:name=".SettingsActivity" android:exported="false" android:label="Settings"/>
         <activity android:name=".GreenElectricitySettingsActivity" android:exported="false" android:label="Green Electricity"/>
         <activity android:name=".BudgetSettingsActivity" android:exported="false" android:label="Carbon Budget Goal"/>
@@ -47,7 +48,7 @@
         <!--  Carbon summary ContentProvider (read-only, signature-protected)  -->
         <provider android:name=".CarbonContentProvider" android:authorities="com.example.carbonwise.provider" android:exported="true" android:readPermission="com.example.carbonwise.permission.READ_CARBON_SUMMARY"/>
         <!--  Home-screen widget: today's CO2 and budget progress  -->
-        <receiver android:name=".CarbonWidgetProvider" android:exported="true" android:label="CarbonWise Today">
+        <receiver android:name=".CarbonWidgetProvider" android:exported="true" android:label="CarbonWise">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
                 <action android:name="android.intent.action.DATE_CHANGED"/>

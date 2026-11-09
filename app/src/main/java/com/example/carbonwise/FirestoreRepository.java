@@ -167,5 +167,29 @@ public class FirestoreRepository {
                 .addOnFailureListener(e -> callback.onError(e.getMessage()));
     }
 
+    public interface BudgetsCallback {
+        void onBudgetsLoaded(Map<String, Double> budgetsByDate);
+        void onError(String error);
+    }
+
+    /** Reads the budget saved for each day (document id = date text, e.g. "Nov 8, 2026"). */
+    public void loadDailyBudgets(BudgetsCallback callback) {
+        if (userId.isEmpty()) {
+            callback.onError("Not signed in");
+            return;
+        }
+        db.collection("users").document(userId).collection("daily_budgets")
+                .get()
+                .addOnSuccessListener(snapshots -> {
+                    Map<String, Double> budgets = new java.util.HashMap<>();
+                    for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                        Double budgetKg = doc.getDouble("budgetKg");
+                        if (budgetKg != null) budgets.put(doc.getId(), budgetKg);
+                    }
+                    callback.onBudgetsLoaded(budgets);
+                })
+                .addOnFailureListener(e -> callback.onError(e.getMessage()));
+    }
+
     // Saved reports no longer live in Firestore: see ReportsRepository (Realtime Database).
 }

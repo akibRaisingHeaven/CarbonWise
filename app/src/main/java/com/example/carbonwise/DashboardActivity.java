@@ -32,7 +32,7 @@ public class DashboardActivity extends AppCompatActivity {
 
     private RecyclerView rvActivityLogs;
     private Button btnLogActivity, btnLogout, btnSelectDate, btnSettings, btnReportOutage, btnAnalytics;
-    private TextView tvTotalCo2, tvEcoSuggestion, tvBudgetStatus, tvSummaryTitle;
+    private TextView tvTotalCo2, tvEcoSuggestion, tvBudgetStatus, tvBudgetRemaining, tvBudgetState, tvSummaryTitle;
     private ProgressBar pbDailyBudget;
 
     private ActivityLogAdapter adapter;
@@ -49,9 +49,15 @@ public class DashboardActivity extends AppCompatActivity {
     private double userGreenPercent = 0.0;
     // Daily budget chosen in Setup (falls back to the 15 kg default until settings load)
     private double userDailyBudgetKg = CarbonCalculator.DAILY_CARBON_BUDGET_KG;
+    // Historical daily budgets are keyed by the same date text used by activity logs.
+    // This keeps a settings change from being applied retroactively to previously selected days.
+    private final Map<String, Double> savedDailyBudgets = new HashMap<>();
+    private boolean dailyBudgetsLoaded;
     private Map<String, ApplianceConfig> userAppliances = new HashMap<>();
 
     private EditText pendingMapEditText = null;
+    private boolean pendingQuickLog;
+    private boolean settingsLoaded;
 
     private final androidx.activity.result.ActivityResultLauncher<Intent> mapPickerLauncher =
             registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(), result -> {
@@ -81,6 +87,9 @@ public class DashboardActivity extends AppCompatActivity {
                 requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 101);
             }
         }
+
+        pendingQuickLog = getIntent() != null
+                && getIntent().getBooleanExtra(CarbonWidgetProvider.EXTRA_OPEN_QUICK_LOG, false);
 
         FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
         if (currentUser == null) {
@@ -129,6 +138,8 @@ public class DashboardActivity extends AppCompatActivity {
         tvTotalCo2 = findViewById(R.id.tvTotalCo2);
         tvEcoSuggestion = findViewById(R.id.tvEcoSuggestion);
         tvBudgetStatus = findViewById(R.id.tvBudgetStatus);
+        tvBudgetRemaining = findViewById(R.id.tvBudgetRemaining);
+        tvBudgetState = findViewById(R.id.tvBudgetState);
         tvSummaryTitle = findViewById(R.id.tvSummaryTitle);
         pbDailyBudget = findViewById(R.id.pbDailyBudget);
     }
@@ -168,6 +179,7 @@ public class DashboardActivity extends AppCompatActivity {
         // Setup now lives in separate screens that save on their own and simply finish(),
         // so pick up everything they may have changed (budget, green %, appliances) here
         if (repository != null) {
+            loadHistoricalDailyBudgets();
             repository.loadUserSettings(new FirestoreRepository.SettingsCallback() {
                 @Override
                 public void onSettingsLoaded(UserSettings settings) {
@@ -178,14 +190,38 @@ public class DashboardActivity extends AppCompatActivity {
                     if (settings.getDailyBudgetKg() > 0) {
                         userDailyBudgetKg = settings.getDailyBudgetKg();
                     }
+                    settingsLoaded = true;
                     updateBudgetProgress();
                     publishWidgetSummary();
+                    maybeOpenPendingQuickLog();
                 }
 
                 @Override
                 public void onNoSettingsFound() { }
             });
         }
+    }
+
+    /** Loads the per-day budget history used by Analytics and report generation. */
+    private void loadHistoricalDailyBudgets() {
+        repository.loadDailyBudgets(new FirestoreRepository.BudgetsCallback() {
+            @Override
+            public void onBudgetsLoaded(Map<String, Double> budgetsByDate) {
+                if (isFinishing() || isDestroyed()) return;
+                savedDailyBudgets.clear();
+                if (budgetsByDate != null) savedDailyBudgets.putAll(budgetsByDate);
+                dailyBudgetsLoaded = true;
+                updateBudgetProgress();
+            }
+
+            @Override
+            public void onError(String error) {
+                if (isFinishing() || isDestroyed()) return;
+                // Keep the resolver's legacy fallback for dates without a stored budget.
+                dailyBudgetsLoaded = true;
+                updateBudgetProgress();
+            }
+        });
     }
 
     private void loadSettingsAndLogs() {
@@ -201,6 +237,7 @@ public class DashboardActivity extends AppCompatActivity {
                 if (settings.getAppliances() != null) {
                     userAppliances = settings.getAppliances();
                 }
+                settingsLoaded = true;
                 ReminderScheduler.scheduleAllReminders(DashboardActivity.this, settings);
 
                 // Auto-check and write baseload entry if missing
@@ -216,6 +253,7 @@ public class DashboardActivity extends AppCompatActivity {
                 } else {
                     stopService(serviceIntent);
                 }
+                maybeOpenPendingQuickLog();
             }
 
             @Override
@@ -239,6 +277,27 @@ public class DashboardActivity extends AppCompatActivity {
                 Toast.makeText(DashboardActivity.this, "Error loading logs: " + error, Toast.LENGTH_SHORT).show();
             }
         });
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (intent != null && intent.getBooleanExtra(CarbonWidgetProvider.EXTRA_OPEN_QUICK_LOG, false)) {
+            pendingQuickLog = true;
+            calendar = Calendar.getInstance();
+            selectedDateStr = CarbonSummaryCache.todayString();
+            if (btnSelectDate != null) btnSelectDate.setText("📅 Today");
+            if (logsLoadedOnce) filterLogsBySelectedDate();
+            maybeOpenPendingQuickLog();
+        }
+    }
+
+    private void maybeOpenPendingQuickLog() {
+        if (!pendingQuickLog || !settingsLoaded || isFinishing()) return;
+        pendingQuickLog = false;
+        // The same validated, category-aware entry dialog used by the dashboard is reused.
+        new android.os.Handler(getMainLooper()).postDelayed(this::showAddActivityDialog, 180);
     }
 
     private void showDatePickerDialog() {
@@ -269,20 +328,87 @@ public class DashboardActivity extends AppCompatActivity {
 
     private boolean logsLoadedOnce = false;
 
-    /** Publishes TODAY's totals (whatever date is selected on screen) for the widget and content provider. */
+    /** Publishes today's, week-to-date and month-to-date totals for the widget/provider. */
     private void publishWidgetSummary() {
         if (!logsLoadedOnce) return;
+        Calendar now = Calendar.getInstance();
+        Calendar todayStart = (Calendar) now.clone();
+        todayStart.set(Calendar.HOUR_OF_DAY, 0);
+        todayStart.set(Calendar.MINUTE, 0);
+        todayStart.set(Calendar.SECOND, 0);
+        todayStart.set(Calendar.MILLISECOND, 0);
+        long todayMillis = todayStart.getTimeInMillis();
         String today = CarbonSummaryCache.todayString();
-        double total = 0.0;
+
+        Calendar weekStart = (Calendar) todayStart.clone();
+        weekStart.setFirstDayOfWeek(Calendar.MONDAY);
+        int dayOfWeek = weekStart.get(Calendar.DAY_OF_WEEK);
+        int daysFromMonday = (dayOfWeek + 5) % 7;
+        weekStart.add(Calendar.DAY_OF_YEAR, -daysFromMonday);
+
+        Calendar monthStart = (Calendar) todayStart.clone();
+        monthStart.set(Calendar.DAY_OF_MONTH, 1);
+
+        double todayTotal = 0.0;
+        double weekTotal = 0.0;
+        double monthTotal = 0.0;
         Map<String, Double> categories = new HashMap<>();
+
         for (ActivityLog log : allFetchedLogs) {
-            if (today.equals(log.getDate())) {
-                total += log.getCo2Emitted();
+            Calendar logDay = parseLogDay(log);
+            if (logDay == null) continue;
+            long logMillis = logDay.getTimeInMillis();
+            double value = Math.max(0.0, log.getCo2Emitted());
+
+            if (logMillis == todayMillis) {
+                todayTotal += value;
                 String category = log.getCategory() == null ? "Other" : log.getCategory();
-                categories.merge(category, log.getCo2Emitted(), Double::sum);
+                categories.merge(category, value, Double::sum);
             }
+            if (logMillis >= weekStart.getTimeInMillis() && logMillis <= todayMillis) weekTotal += value;
+            if (logDay.get(Calendar.YEAR) == todayStart.get(Calendar.YEAR)
+                    && logDay.get(Calendar.MONTH) == todayStart.get(Calendar.MONTH)
+                    && logMillis <= todayMillis) monthTotal += value;
         }
-        CarbonSummaryCache.publish(this, today, total, userDailyBudgetKg, categories);
+
+        int daysThisWeek = Math.max(1, daysBetweenDays(weekStart, todayStart) + 1);
+        int daysThisMonth = todayStart.get(Calendar.DAY_OF_MONTH);
+        double weekBudget = userDailyBudgetKg * daysThisWeek;
+        double monthBudget = userDailyBudgetKg * daysThisMonth;
+        String weekLabel = "Week to date · " + new SimpleDateFormat("MMM d", Locale.getDefault()).format(weekStart.getTime());
+        String monthLabel = "Month to date · " + new SimpleDateFormat("MMMM", Locale.getDefault()).format(todayStart.getTime());
+
+        CarbonSummaryCache.publish(this, today, todayTotal, userDailyBudgetKg, categories,
+                weekTotal, weekBudget, weekLabel, monthTotal, monthBudget, monthLabel);
+    }
+
+    private Calendar parseLogDay(ActivityLog log) {
+        if (log == null) return null;
+        Calendar day = Calendar.getInstance();
+        try {
+            Date parsed = new SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).parse(log.getDate());
+            if (parsed != null) day.setTime(parsed);
+            else if (log.getTimestamp() > 0) day.setTimeInMillis(log.getTimestamp());
+            else return null;
+        } catch (Exception e) {
+            if (log.getTimestamp() > 0) day.setTimeInMillis(log.getTimestamp());
+            else return null;
+        }
+        day.set(Calendar.HOUR_OF_DAY, 0);
+        day.set(Calendar.MINUTE, 0);
+        day.set(Calendar.SECOND, 0);
+        day.set(Calendar.MILLISECOND, 0);
+        return day;
+    }
+
+    private int daysBetweenDays(Calendar from, Calendar to) {
+        Calendar cursor = (Calendar) from.clone();
+        int days = 0;
+        while (cursor.before(to)) {
+            cursor.add(Calendar.DAY_OF_YEAR, 1);
+            days++;
+        }
+        return days;
     }
 
     private void filterLogsBySelectedDate() {
@@ -306,12 +432,42 @@ public class DashboardActivity extends AppCompatActivity {
     private void updateBudgetProgress() {
         tvTotalCo2.setText(String.format(Locale.getDefault(), "%.1f kg CO₂", currentTotalCo2));
 
-        double budget = userDailyBudgetKg;
-        int percentage = (int) Math.min(100, (currentTotalCo2 / budget) * 100);
+        String todayKey = new SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(new Date());
+        // Always use today's current setting for today; historical dates use their saved budget.
+        // Until the history request completes, avoid briefly presenting today's budget for an old date.
+        if (!dailyBudgetsLoaded && selectedDateStr != null && !selectedDateStr.equals(todayKey)) {
+            tvBudgetStatus.setText("Loading saved daily budget…");
+            tvBudgetRemaining.setText(" ");
+            tvBudgetState.setText(" ");
+            pbDailyBudget.setProgress(0);
+            return;
+        }
+        double budget = Math.max(0.0, BudgetResolver.budgetForDate(
+                savedDailyBudgets, selectedDateStr, todayKey, userDailyBudgetKg));
+        int percentage = budget > 0
+                ? (int) Math.round(Math.max(0.0, currentTotalCo2) / budget * 100.0) : 0;
+        pbDailyBudget.setProgress(Math.max(0, Math.min(100, percentage)));
 
-        pbDailyBudget.setProgress(percentage);
-        tvBudgetStatus.setText(String.format(Locale.getDefault(),
-                "Daily Budget: %.1f / %.1f kg CO₂ (%d%% used)", currentTotalCo2, budget, percentage));
+        tvBudgetStatus.setText(budget > 0
+                ? String.format(Locale.getDefault(), "Daily Budget: %.1f / %.1f kg CO₂ (%d%% used)",
+                        currentTotalCo2, budget, percentage)
+                : "Daily budget is not configured");
+
+        CarbonBudgetStatus status = CarbonBudgetStatus.from(currentTotalCo2, budget);
+        tvBudgetState.setText(status.getLabel());
+        tvBudgetState.setTextColor(status.getDashboardColor());
+
+        String remainingText;
+        if (budget <= 0) {
+            remainingText = "Set a daily budget";
+        } else if (currentTotalCo2 > budget) {
+            remainingText = String.format(Locale.getDefault(), "%.1f kg CO₂ over budget",
+                    currentTotalCo2 - budget);
+        } else {
+            remainingText = String.format(Locale.getDefault(), "%.1f kg CO₂ remaining",
+                    budget - currentTotalCo2);
+        }
+        tvBudgetRemaining.setText(remainingText);
     }
 
     private void updateEcoSuggestion() {

@@ -58,13 +58,27 @@ public class ActivityDialogHelper {
         void onReport(double outageHours);
     }
 
-    public static void showAddOrEditDialog(
+    public static AlertDialog showAddOrEditDialog(
             Context context,
             ActivityLog existingLog,
             Map<String, ApplianceConfig> userAppliances,
             double userGreenPercent,
             OnMapPickerRequested mapPickerCallback,
             OnLogSaveListener saveCallback
+    ) {
+        return showAddOrEditDialog(context, existingLog, userAppliances, userGreenPercent,
+                mapPickerCallback, saveCallback, true);
+    }
+
+    /** Variant that lets callers keep the dialog open while an asynchronous save is pending. */
+    public static AlertDialog showAddOrEditDialog(
+            Context context,
+            ActivityLog existingLog,
+            Map<String, ApplianceConfig> userAppliances,
+            double userGreenPercent,
+            OnMapPickerRequested mapPickerCallback,
+            OnLogSaveListener saveCallback,
+            boolean dismissAfterSave
     ) {
         View dialogView = LayoutInflater.from(context).inflate(R.layout.activity_dialog_add_log, null);
 
@@ -375,11 +389,12 @@ public class ActivityDialogHelper {
                 }
 
                 saveCallback.onSave(title, category, calculatedCo2);
-                dialog.dismiss();
+                if (dismissAfterSave) dialog.dismiss();
             });
         }
 
         dialog.show();
+        return dialog;
     }
 
     public static void showReportOutageDialog(Context context, String selectedDateStr, OnOutageReported callback) {
